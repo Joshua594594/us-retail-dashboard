@@ -3,15 +3,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. 페이지 설정 (넓은 화면)
+# 1. 페이지 설정
 st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
 st.title("📊 US Market & Trade Dashboard")
 
-# 2. 탭(Tab) 생성: 노트북 리소스 최적화를 위해 화면을 분리합니다.
+# 2. 탭 생성
 tab1, tab2 = st.tabs(["🛒 미국 소매 판매 현황 (FRED)", "🌐 미국 의류 수입 현황 (OTEXA)"])
 
 # ==========================================
-# [Tab 1] 기존: 미국 소매 판매 현황 (FRED)
+# [Tab 1] 미국 소매 판매 현황 (FRED)
 # ==========================================
 with tab1:
     try:
@@ -71,84 +71,62 @@ with tab1:
         st.error(f"소매 판매 데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 2] 신규: 미국 의류 수입 현황 (OTEXA)
+# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 찐 데이터 연동 버전!
 # ==========================================
 with tab2:
-    st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
-    
-    # 💡 팁: 실제 데이터 파이프라인(ETL)이 완성되기 전까지 화면을 테스트하기 위한 샘플 데이터입니다.
-    # 나중에 otexa_share.csv 와 otexa_yoy.csv 를 만들어서 대체하면 완벽하게 연동됩니다.
-    
-    # 1. 국가별 비중 차트 데이터 생성 (이미지 참고)
-    share_data = {
-        'Country': ['China', 'Vietnam', 'Indonesia', 'Cambodia', 'Nicaragua', 'Guatemala'],
-        '2022': [21.7, 18.3, 5.6, 4.4, 2.9, 1.9],
-        '2023': [21.0, 18.2, 5.4, 4.3, 2.5, 1.9],
-        '2024': [20.8, 18.9, 5.4, 4.8, 2.5, 2.0],
-        '2025': [14.9, 23.5, 6.5, 6.8, 2.7, 2.1],
-        '2026 (Jan-Feb)': [9.7, 23.9, 7.2, 6.5, 2.1, 1.8]
-    }
-    df_share = pd.DataFrame(share_data)
-    
-    # Plotly 그룹형 바 차트 그리기
-    fig_share = go.Figure()
-    
-    # 연도별로 색상 톤을 다르게 설정 (Blues palette)
-    colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
-    years = ['2022', '2023', '2024', '2025', '2026 (Jan-Feb)']
-    
-    for idx, year in enumerate(years):
-        fig_share.add_trace(go.Bar(
-            x=df_share['Country'],
-            y=df_share[year],
-            name=year,
-            marker_color=colors_years[idx],
-            text=df_share[year].apply(lambda x: f"{x:.1f}%" if idx == 4 or idx == 0 else ""), # 처음과 끝 연도만 라벨 표시 (깔끔하게)
-            textposition='outside'
-        ))
+    try:
+        # 우리가 방금 만든 '진짜 파일'을 불러옵니다!
+        df_share = pd.read_csv('otexa_share.csv')
+        st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
         
-    fig_share.update_layout(
-        barmode='group',
-        plot_bgcolor='white',
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
-        yaxis=dict(showgrid=True, gridcolor='lightgray', zeroline=True, zerolinecolor='black'),
-        height=400,
-        margin=dict(t=20)
-    )
-    st.plotly_chart(fig_share, use_container_width=True)
-    
-    st.markdown("---")
-    st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
-    
-    # 2. 국가별 YoY 표 데이터 생성 (이미지 참고)
-    yoy_data = {
-        'Country': ['World', 'China', 'Vietnam', 'Indonesia', 'Cambodia', 'Nicaragua', 'Guatemala', 'Bangladesh', 'India'],
-        "'25 / 2": [3.3, 3.0, 2.2, -0.4, -6.5, -23.9, -4.5, 10.2, 19.2],
-        "'25 / 3": [11.2, -8.9, 20.2, 22.9, 24.2, 9.0, 18.4, 26.7, 21.1],
-        "'25 / 4": [9.7, -13.3, 23.4, 3.1, 38.6, -4.2, 0.7, 37.8, 10.1],
-        "'25 / 5": [-7.4, -52.4, 17.6, 2.6, 9.1, -2.0, -8.8, -8.1, 4.0],
-        "'25 / 6": [5.1, -39.9, 25.3, 44.9, 59.5, 16.4, 3.3, 45.6, 12.4],
-        "'26 / 1": [-13.5, -62.3, 3.1, 7.2, 25.4, -11.8, -4.1, -0.9, -18.3] # 중간 생략
-    }
-    df_yoy = pd.DataFrame(yoy_data)
-    df_yoy = df_yoy.set_index('Country')
-    
-    # 국가명 컬럼 색상 지정 (이미지 레이아웃 완벽 재현)
-    def style_country_bg(row):
-        color_map = {
-            'World': 'background-color: #808080; color: white; font-weight: bold;',
-            'China': 'background-color: #ed7d31; color: white; font-weight: bold;',
-            'Vietnam': 'background-color: #a9d18e; color: black; font-weight: bold;',
-            'Indonesia': 'background-color: #5b9bd5; color: white; font-weight: bold;',
-            'Cambodia': 'background-color: #1f497d; color: white; font-weight: bold;',
-            'Nicaragua': 'background-color: #ff0000; color: white; font-weight: bold;',
-            'Guatemala': 'background-color: #00b050; color: white; font-weight: bold;'
-        }
-        # 기본 셀 서식
-        row_style = [''] * len(row)
-        return row_style
+        fig_share = go.Figure()
+        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
+        
+        # 컬럼 이름에서 연도 정보 추출 (동적으로 2026(Jan-Mar) 감지)
+        years = df_share.columns[1:] 
+        
+        for idx, year in enumerate(years):
+            fig_share.add_trace(go.Bar(
+                x=df_share['Country'],
+                y=df_share[year],
+                name=str(year),
+                marker_color=colors_years[idx % len(colors_years)],
+                text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
+                textposition='outside'
+            ))
+            
+        fig_share.update_layout(
+            barmode='group',
+            plot_bgcolor='white',
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            yaxis=dict(showgrid=True, gridcolor='lightgray', zeroline=True, zerolinecolor='black'),
+            height=400,
+            margin=dict(t=20)
+        )
+        st.plotly_chart(fig_share, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
+        
+        # 우리가 방금 만든 '진짜 표 파일'을 불러옵니다!
+        df_yoy = pd.read_csv('otexa_yoy.csv')
+        df_yoy = df_yoy.set_index('Country')
+        
+        def style_country_bg(row):
+            color_map = {
+                'World': 'background-color: #808080; color: white; font-weight: bold;',
+                'China': 'background-color: #ed7d31; color: white; font-weight: bold;',
+                'Vietnam': 'background-color: #a9d18e; color: black; font-weight: bold;',
+                'Indonesia': 'background-color: #5b9bd5; color: white; font-weight: bold;',
+                'Cambodia': 'background-color: #1f497d; color: white; font-weight: bold;',
+                'Nicaragua': 'background-color: #ff0000; color: white; font-weight: bold;',
+                'Guatemala': 'background-color: #00b050; color: white; font-weight: bold;'
+            }
+            bg = color_map.get(row.name, '')
+            return [bg] * len(row)
 
-    # 국가 인덱스 색상 칠하기 (Pandas Styler 고급기법)
-    styled_yoy = df_yoy.style.format("{:.1f}%").apply(style_country_bg, axis=1)
-    
-    st.dataframe(df_yoy.style.format("{:.1f}%"), use_container_width=True)
+        styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
+        st.dataframe(styled_yoy, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
