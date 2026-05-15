@@ -1,3 +1,15 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import numpy as np
+
+# 1. 페이지 설정 및 제목
+st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
+st.title("📊 US Market & Trade Dashboard")
+
+# 2. 탭 생성 (에러 방지를 위해 반드시 코드 상단에 위치해야 합니다)
+tab1, tab2 = st.tabs(["🛒 미국 소매 판매 현황 (FRED)", "🌐 미국 의류 수입 현황 (OTEXA)"])
+
 # ==========================================
 # [Tab 1] 미국 소매 판매 현황 (FRED)
 # ==========================================
@@ -23,7 +35,7 @@ with tab1:
         ytd_growth = ytd_growth.dropna().reset_index()
         ytd_growth.columns = ['Category', 'Growth']
         
-        # 💡 [요청사항 1] 원하는 순서대로 강제 정렬 (오타 방지를 위해 부분 일치 검색 포함)
+        # [요청사항 1] 커스텀 정렬 순서 정의
         custom_order_keywords = [
             "Retail Trade Total",
             "Nonstore Retailers",
@@ -38,29 +50,26 @@ with tab1:
             "Health",
             "Gasoline",
             "Miscellaneous",
-            "Offline" # Store(Offline)
+            "Offline"
         ]
         
-        # 실제 데이터프레임의 카테고리명과 매칭하여 정렬 리스트 생성
         ordered_categories = []
         for keyword in custom_order_keywords:
             for cat in ytd_growth['Category'].unique():
                 if keyword.lower() in cat.lower() and cat not in ordered_categories:
                     ordered_categories.append(cat)
-                    
-        # 나머지 카테고리가 있다면 맨 밑에 추가
+        
         for cat in ytd_growth['Category'].unique():
             if cat not in ordered_categories:
                 ordered_categories.append(cat)
 
-        # 데이터프레임 정렬 적용 (Plotly는 아래서부터 위로 그리므로 순서를 뒤집어줌)
+        # Plotly용 정렬 (아래에서 위로 그려지므로 역순 배치)
         ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=ordered_categories, ordered=True)
         ytd_growth = ytd_growth.sort_values('Category', ascending=False)
         
-        # 기본 막대 색상 설정 (양수 파랑, 음수 빨강)
         colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
         
-        # 💡 [요청사항 2] Clothing 카테고리에만 '빨간색 박스(테두리)' 칠하기
+        # [요청사항 2] Clothing 카테고리에 레드 박스(테두리)
         line_colors = ['red' if 'Clothing' in cat else 'rgba(0,0,0,0)' for cat in ytd_growth['Category']]
         line_widths = [3 if 'Clothing' in cat else 0 for cat in ytd_growth['Category']]
         
@@ -71,8 +80,8 @@ with tab1:
             text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%"),
             textposition='outside',
             marker_color=colors,
-            marker_line_color=line_colors, # 테두리 색상
-            marker_line_width=line_widths  # 테두리 두께
+            marker_line_color=line_colors,
+            marker_line_width=line_widths
         ))
         
         fig.update_layout(
@@ -90,7 +99,6 @@ with tab1:
         yoy_df = df_pivot.pct_change(periods=12) * 100
         table_df = yoy_df.tail(12).T
         
-        # 💡 [요청사항 1] 표(Table)에도 동일한 커스텀 순서 적용
         valid_table_order = [c for c in ordered_categories if c in table_df.index]
         table_df = table_df.reindex(valid_table_order)
         
@@ -107,3 +115,56 @@ with tab1:
 
     except Exception as e:
         st.error(f"소매 판매 데이터를 불러오는 중 오류가 발생했습니다: {e}")
+
+# ==========================================
+# [Tab 2] 미국 의류 수입 현황 (OTEXA)
+# ==========================================
+with tab2:
+    try:
+        df_share = pd.read_csv('otexa_share.csv')
+        st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
+        
+        fig_share = go.Figure()
+        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
+        years = df_share.columns[1:] 
+        
+        for idx, year in enumerate(years):
+            fig_share.add_trace(go.Bar(
+                x=df_share['Country'],
+                y=df_share[year],
+                name=str(year),
+                marker_color=colors_years[idx % len(colors_years)],
+                text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
+                textposition='outside'
+            ))
+            
+        fig_share.update_layout(
+            barmode='group', plot_bgcolor='white', height=400, margin=dict(t=20),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        )
+        st.plotly_chart(fig_share, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
+        
+        df_yoy = pd.read_csv('otexa_yoy.csv')
+        df_yoy = df_yoy.set_index('Country')
+        
+        def style_country_bg(row):
+            color_map = {
+                'World': 'background-color: #808080; color: white; font-weight: bold;',
+                'China': 'background-color: #ed7d31; color: white; font-weight: bold;',
+                'Vietnam': 'background-color: #a9d18e; color: black; font-weight: bold;',
+                'Indonesia': 'background-color: #5b9bd5; color: white; font-weight: bold;',
+                'Cambodia': 'background-color: #1f497d; color: white; font-weight: bold;',
+                'Nicaragua': 'background-color: #ff0000; color: white; font-weight: bold;',
+                'Guatemala': 'background-color: #00b050; color: white; font-weight: bold;'
+            }
+            bg = color_map.get(row.name, '')
+            return [bg] * len(row)
+
+        styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
+        st.dataframe(styled_yoy, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
