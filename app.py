@@ -73,7 +73,7 @@ with tab1:
         line_colors = ['red' if 'Clothing' in cat else 'rgba(0,0,0,0)' for cat in ytd_growth['Category']]
         line_widths = [3 if 'Clothing' in cat else 0 for cat in ytd_growth['Category']]
         
-        # [그래프 생성]
+      # [그래프 생성]
         fig = go.Figure(go.Bar(
             x=ytd_growth['Growth'],
             y=ytd_growth['Category'],
@@ -81,42 +81,39 @@ with tab1:
             text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%"),
             textposition='outside',
             marker_color=colors,
-            # 막대 자체의 테두리는 제거하거나 얇게 설정
             marker_line_width=0 
         ))
 
-        # 💡 [요청사항] 라벨부터 그래프까지 길게 이어지는 레드 박스 추가
-        # Clothing 카테고리의 인덱스(위치)를 찾습니다.
+        # 💡 [핵심 수정] xref="paper"를 사용하여 왼쪽 라벨 끝부터 박스를 시작합니다.
         target_cat = "Clothing and Clothing Access. Stores"
-        # 현재 정렬된 순서에서 해당 카테고리가 몇 번째인지 확인
         cat_list = ytd_growth['Category'].tolist()
+        
         if any(target_cat in c for c in cat_list):
-            # 실제 리스트에서의 인덱스 추출
             target_idx = [i for i, c in enumerate(cat_list) if target_cat in c][0]
             
-            # 박스(Shape) 추가
             fig.add_shape(
                 type="rect",
-                # x0를 음수 값으로 주어 왼쪽 라벨 영역까지 박스를 확장합니다.
-                x0=-15, # 성장률 데이터 범위를 고려하여 충분히 왼쪽으로 설정 (라벨 위치)
-                x1=ytd_growth['Growth'].max() + 5, # 오른쪽 끝 여유분
-                y0=target_idx - 0.4, # 박스 위쪽 경계
-                y1=target_idx + 0.4, # 박스 아래쪽 경계
-                line=dict(color="Red", width=3),
-                fillcolor="rgba(255, 0, 0, 0.05)", # 박스 내부 아주 연한 빨간색 채우기
-                xref="x",
-                yref="y"
+                # x0=0, x1=1 은 그래프 종이의 왼쪽 끝에서 오른쪽 끝을 의미합니다.
+                xref="paper", 
+                x0=-0.25,  # 👈 이 수치를 조절하여 왼쪽 라벨이 더 많이 덮이게 합니다 (-0.3 등으로 조절 가능)
+                x1=1.05,   # 👈 오른쪽 끝 수치
+                yref="y",
+                y0=target_idx - 0.4,
+                y1=target_idx + 0.4,
+                line=dict(color="Red", width=2),
+                fillcolor="rgba(255, 0, 0, 0.05)",
+                layer="below" # 막대 그래프 뒤로 박스를 보내서 숫자가 잘 보이게 함
             )
 
         fig.update_layout(
             plot_bgcolor='white', 
             height=600, 
-            margin=dict(l=250, r=50, t=30, b=0), # 왼쪽 라벨 공간 확보를 위해 여백 조절
+            margin=dict(l=280, r=50, t=30, b=0), # l(왼쪽) 여백을 충분히 주어야 박스가 안 잘립니다.
             xaxis=dict(showgrid=True, gridcolor='lightgray'),
             yaxis=dict(
                 categoryorder='array', 
                 categoryarray=ordered_categories[::-1],
-                automargin=True # 라벨이 잘리지 않게 자동 조절
+                automargin=False # 박스 위치 고정을 위해 False 권장
             )
         )
         st.plotly_chart(fig, use_container_width=True)
