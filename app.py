@@ -95,11 +95,11 @@ with tab1:
                 type="rect",
                 # x0=0, x1=1 은 그래프 종이의 왼쪽 끝에서 오른쪽 끝을 의미합니다.
                 xref="paper", 
-                x0=-0.15,  # 👈 이 수치를 조절하여 왼쪽 라벨이 더 많이 덮이게 합니다 (-0.3 등으로 조절 가능)
+                x0=-0.18,  # 👈 이 수치를 조절하여 왼쪽 라벨이 더 많이 덮이게 합니다 (-0.3 등으로 조절 가능)
                 x1=1.0,   # 👈 오른쪽 끝 수치
                 yref="y",
-                y0=target_idx - 0.4,
-                y1=target_idx + 0.4,
+                y0=target_idx - 0.5,
+                y1=target_idx + 0.5,
                 line=dict(color="Red", width=2),
                 fillcolor="rgba(255, 0, 0, 0.05)",
                 layer="below" # 막대 그래프 뒤로 박스를 보내서 숫자가 잘 보이게 함
@@ -108,12 +108,15 @@ with tab1:
         fig.update_layout(
             plot_bgcolor='white', 
             height=600, 
-            margin=dict(l=280, r=50, t=30, b=0), # l(왼쪽) 여백을 충분히 주어야 박스가 안 잘립니다.
+            # 💡 왼쪽 여백(l)을 280에서 350으로 더 넉넉하게 늘립니다.
+            margin=dict(l=350, r=50, t=30, b=0), 
             xaxis=dict(showgrid=True, gridcolor='lightgray'),
             yaxis=dict(
                 categoryorder='array', 
                 categoryarray=ordered_categories[::-1],
-                automargin=False # 박스 위치 고정을 위해 False 권장
+                # 💡 automargin을 True로 하면 짤리는 글자를 방지하기 위해 
+                # 차트가 스스로 여백을 계산합니다.
+                automargin=True 
             )
         )
         st.plotly_chart(fig, use_container_width=True)
