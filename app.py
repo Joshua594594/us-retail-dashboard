@@ -446,3 +446,100 @@ with tab3:
             
     except Exception as e:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
+
+        # ==========================================
+# [Tab 4] 🌐 거시경제 및 원가 지표 (100% 실시간 자동화)
+# ==========================================
+with tab4:
+    st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
+    st.caption("환율, 원자재, 미국 거시경제(GDP, CPI 등) 지표를 실시간으로 가져옵니다.")
+    
+    # 💡 1시간 단위 캐싱
+    @st.cache_data(ttl=3600)
+    def get_macro_data():
+        import pandas_datareader.data as web
+        import datetime
+        
+        end_date = datetime.datetime.now()
+        start_1y = end_date - datetime.timedelta(days=365)
+        start_5y = end_date - datetime.timedelta(days=365*5)
+        
+        # 1. 야후 파이낸스 데이터 (엔/달러 제거)
+        yf_tickers = {
+            "원/달러 환율": "KRW=X",
+            "글로벌 면화(Cotton)": "CT=F",
+            "WTI 국제 유가": "CL=F"
+        }
+        yf_data = {}
+        for name, ticker in yf_tickers.items():
+            try:
+                hist = yf.Ticker(ticker).history(period="1y")
+                yf_data[name] = hist['Close']
+            except Exception:
+                yf_data[name] = pd.Series()
+                
+        # 2. 미국 FRED 데이터
+        fred_tickers = {
+            "미국 실질 GDP": "GDPC1",                 
+            "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
+            "미국 소매업 재고율 (Inventory-to-Sales)": "RETAILIRSA" 
+        }
+        fred_data = {}
+        for name, ticker in fred_tickers.items():
+            try:
+                df = web.DataReader(ticker, 'fred', start_5y, end_date)
+                fred_data[name] = df[ticker]
+            except Exception:
+                fred_data[name] = pd.Series()
+                
+        return yf_data, fred_data
+
+    try:
+        yf_data, fred_data = get_macro_data()
+        
+        # --- 1층: 환율 동향 (엔/달러가 빠진 대신 원/달러를 와이드하게 배치) ---
+        st.markdown("### 💱 원/달러 환율 동향 (최근 1년)")
+        if not yf_data["원/달러 환율"].empty:
+            current_krw = yf_data["원/달러 환율"].iloc[-1]
+            fig_krw = go.Figure(go.Scatter(
+                x=yf_data["원/달러 환율"].index, y=yf_data["원/달러 환율"], 
+                mode='lines', line=dict(color='#2E86C1', width=2)
+            ))
+            fig_krw.update_layout(
+                title=f"원/달러 환율 (현재: {current_krw:,.2f}원)", 
+                width=850, height=300, # 가로 850 픽셀로 넓고 시원하게 고정
+                margin=dict(l=30, r=30, t=40, b=30), 
+                plot_bgcolor='white', 
+                xaxis=dict(showgrid=True, gridcolor='lightgray'), 
+                yaxis=dict(showgrid=True, gridcolor='lightgray')
+            )
+            st.plotly_chart(fig_krw, use_container_width=False)
+
+        st.markdown("---")
+        
+        # --- 2층: 원자재 동향 ---
+        st.markdown("### 🛢️ 핵심 원자재 가격 동향 (최근 1년)")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            if not yf_data["글로벌 면화(Cotton)"].empty:
+                current_cotton = yf_data["글로벌 면화(Cotton)"].iloc[-1]
+                fig_ct = go.Figure(go.Scatter(x=yf_data["글로벌 면화(Cotton)"].index, y=yf_data["글로벌 면화(Cotton)"], mode='lines', line=dict(color='#F1C40F', width=2)))
+                fig_ct.update_layout(title=f"국제 면화 선물 (현재: ${current_cotton:,.2f})", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_ct, use_container_width=True)
+                
+        with col4:
+            if not yf_data["WTI 국제 유가"].empty:
+                current_wti = yf_data["WTI 국제 유가"].iloc[-1]
+                fig_wti = go.Figure(go.Scatter(x=yf_data["WTI 국제 유가"].index, y=yf_data["WTI 국제 유가"], mode='lines', line=dict(color='#34495E', width=2)))
+                fig_wti.update_layout(title=f"WTI 국제 유가 (현재: ${current_wti:,.2f})", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_wti, use_container_width=True)
+
+        st.markdown("---")
+        
+        # --- 3층: 거시경제 및 소비 지표 ---
+        st.markdown("### 🦅 미국 거시경제 및 소비 지표 (최근 5년 트렌드)")
+        st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED) - IMF 등 글로벌 기관의 원천 데이터와 동일합니다.")
+        
+        col5, col6 = st.columns(2)
+        with col5:
