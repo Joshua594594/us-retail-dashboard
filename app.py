@@ -175,26 +175,54 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 전체 캐싱 완벽 판)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (절대 죽지 않는 무적 방어 + 자동 번역)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 [핵심 해결책] 주가, 차트뿐만 아니라 '한글로 번역된 뉴스 리스트'까지 통째로 10분간 캐싱합니다!
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company):
-        # 1. 야후 파이낸스 기본 데이터 호출
         ticker = yf.Ticker(ticker_symbol)
-        info = ticker.info
-        hist = ticker.history(period="6mo")
-        raw_news = ticker.news
         
-        # 2. 뉴스 한글 번역 프로세스 진행
+        # 1. 차트 데이터 가져오기 (가장 차단 안 당하는 안전한 API)
+        try:
+            hist = ticker.history(period="6mo")
+        except Exception:
+            hist = pd.DataFrame()
+            
+        # 2. 기업 정보 가져오기 (차단 당하면 차트 데이터에서 직접 계산!)
+        info_dict = {}
+        try:
+            info_dict = ticker.info # 여기서 차단당할 확률 높음
+        except Exception:
+            pass # 차단당하면 쿨하게 무시하고 아래로 넘어갑니다.
+            
+        # info가 차단당해서 비어있다면, 차트(hist)에서 숫자를 직접 뽑아냅니다.
+        if not info_dict and not hist.empty:
+            info_dict['currentPrice'] = hist['Close'].iloc[-1]
+            info_dict['previousClose'] = hist['Close'].iloc[-2] if len(hist) > 1 else hist['Close'].iloc[-1]
+            info_dict['fiftyTwoWeekHigh'] = hist['High'].max()
+            
+            # 통화(Currency) 안전 하드코딩
+            if ".KS" in ticker_symbol or ".KQ" in ticker_symbol:
+                info_dict['currency'] = "KRW"
+            elif ".T" in ticker_symbol:
+                info_dict['currency'] = "JPY"
+            else:
+                info_dict['currency'] = "USD"
+                
+        # 3. 뉴스 데이터 (차단 당하면 바로 구글로 우회)
+        raw_news = []
+        try:
+            raw_news = ticker.news
+        except Exception:
+            pass # 뉴스도 차단당하면 빈 리스트로 넘깁니다.
+            
+        # 4. 번역 프로세스
         from deep_translator import GoogleTranslator
         translated_news = []
         valid_news_count = 0
         
-        # 야후 뉴스 우선 번역
         if raw_news:
             for item in raw_news:
                 title = item.get('title')
@@ -206,14 +234,13 @@ with tab3:
                         ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
                         display_title = f"[{publisher}] {ko_title}"
                     except Exception:
-                        display_title = f"[{publisher}] {title} (번역 실패)"
-                    
-                    translated_news.append({"title": display_title, "orig_title": title, "link": link, "pub": publisher})
+                        display_title = f"[{publisher}] {title}"
+                    translated_news.append({"title": display_title, "orig_title": title, "link": link})
                     valid_news_count += 1
                 if valid_news_count >= 5:
                     break
 
-        # 야후 뉴스가 없으면 구글 뉴스 RSS 백업 및 번역
+        # 야후 뉴스가 차단당했거나 없으면 -> 무조건 구글 뉴스 가동!
         if valid_news_count == 0:
             try:
                 import xml.etree.ElementTree as ET
@@ -237,16 +264,16 @@ with tab3:
                             ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
                             display_title = f"[{g_pub}] {ko_g_title}"
                         except Exception:
-                            display_title = f"[{g_pub}] {g_title} (번역 실패)"
+                            display_title = f"[{g_pub}] {g_title}"
                             
-                        translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link, "pub": g_pub})
+                        translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link})
                         valid_news_count += 1
             except Exception:
                 pass
                 
-        return info, hist, translated_news
+        return info_dict, hist, translated_news
 
-    # 기업 리스트 정의
+    # 기업 리스트
     companies = {
         "Walmart (월마트)": "WMT",
         "Target (타겟)": "TGT",
@@ -270,7 +297,7 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        # 💡 한글로 싹 구워진 데이터를 캐시 저장소에서 아주 안전하게 받아옵니다.
+        # 무적 방어 함수 호출!
         info, hist, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
         # 1. 상단 미니 카드(Metrics) 배치
@@ -279,17 +306,17 @@ with tab3:
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
         previous_close = info.get('previousClose', 1)
         price_change = current_price - previous_close
-        price_change_pct = (price_change / previous_close) * 100
+        price_change_pct = (price_change / previous_close) * 100 if previous_close != 0 else 0
         
         market_cap = info.get('marketCap', 0)
         currency = info.get('currency', 'USD')
         
         if currency == "KRW":
-            market_cap_formatted = f"{market_cap // 100000000:,} 억 원"
+            market_cap_formatted = f"{market_cap // 100000000:,} 억 원" if market_cap > 0 else "데이터 없음"
         elif currency == "JPY":
-            market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔"
+            market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔" if market_cap > 0 else "데이터 없음"
         else:
-            market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B (십억 달러)"
+            market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B" if market_cap > 0 else "데이터 없음"
             
         with col1:
             st.metric(
@@ -310,7 +337,7 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-        # 3. 최신 뉴스 리스트 연동 (이미 한글 번역이 완료되어 캐싱된 상태)
+        # 3. 최신 뉴스 리스트 (한글)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스 (한글 번역)")
         
@@ -323,4 +350,4 @@ with tab3:
             st.info("현재 해당 기업과 관련된 최신 뉴스 기사를 불러올 수 없습니다.")
             
     except Exception as e:
-        st.error(f"데이터를 가져오는 중 일시적인 오류가 발생했습니다: {e}")
+        st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
