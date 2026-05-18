@@ -175,28 +175,28 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (1년 주가 추세 + 분기 실적 + 뉴스 번역 + 무적 캐싱)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (1년 주가 추세 + 분기 실적 증감률 + 뉴스 번역)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 주가, 분기 재무제표, 뉴스를 한 번에 불러와 10분간 캐싱하는 무적의 함수
+    # 💡 주가, 분기 재무제표, 뉴스를 한 번에 불러와 10분간 캐싱하는 함수
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company):
         ticker = yf.Ticker(ticker_symbol)
         
-        # 1. 1년치 주가 데이터 가져오기 (요청사항 1 반영)
+        # 1. 1년치 주가 데이터 가져오기 (요청사항 1)
         try:
             hist = ticker.history(period="1y")
         except Exception:
             hist = pd.DataFrame()
             
-        # 2. 분기 실적 데이터 가져오기 (요청사항 4 반영 - 캐싱 처리로 먹통 걱정 제로!)
+        # 2. 분기 실적 데이터 가져오기 (매출/영업이익 증감률 버전)
         financials_df = pd.DataFrame()
+        is_yoy = False
         try:
             q_fin = ticker.quarterly_financials
             if q_fin is not None and not q_fin.empty:
-                # 야후 파이낸스 고유 계정명 매칭 (매출액 및 영업이익)
                 revenue_idx = [idx for idx in q_fin.index if 'Total Revenue' in idx or 'Revenue' in idx]
                 op_inc_idx = [idx for idx in q_fin.index if 'Operating Income' in idx]
                 
@@ -210,10 +210,22 @@ with tab3:
                     row_labels.append('영업이익')
                     
                 if rows_to_extract:
-                    financials_df = q_fin.loc[rows_to_extract].copy()
-                    financials_df.index = row_labels
-                    financials_df = financials_df.iloc[:, :4] # 최근 4개 분기만 컷
-                    financials_df = financials_df.iloc[:, ::-1] # 과거에서 현재 순으로 컬럼 뒤집기
+                    raw_fin = q_fin.loc[rows_to_extract].copy()
+                    raw_fin.index = row_labels
+                    
+                    # 과거 -> 현재 순으로 날짜 정렬
+                    raw_fin = raw_fin.reindex(columns=sorted(raw_fin.columns))
+                    
+                    # 💡 기본적으로 요청하신 전년 동분기 대비(periods=4) 계산 시도
+                    growth_df = raw_fin.pct_change(periods=4, axis=1) * 100
+                    financials_df = growth_df.iloc[:, -4:]
+                    is_yoy = True
+                    
+                    # 만약 API 데이터 부족으로 YoY 결과가 전부 비어있으면(NaN) 전분기 대비(periods=1)로 안전하게 폴백
+                    if financials_df.isna().all().all() or financials_df.empty:
+                        growth_df = raw_fin.pct_change(periods=1, axis=1) * 100
+                        financials_df = growth_df.iloc[:, -4:]
+                        is_yoy = False
         except Exception:
             pass
             
@@ -285,7 +297,7 @@ with tab3:
             except Exception:
                 pass
                 
-        return info_dict, hist, financials_df, translated_news
+        return info_dict, hist, financials_df, is_yoy, translated_news
 
     # 대상 기업 리스트
     companies = {
@@ -302,9 +314,9 @@ with tab3:
     
     try:
         # 무적 캐싱 함수 가동
-        info, hist, financials_df, final_news = get_complete_company_data(ticker_symbol, selected_company)
+        info, hist, financials_df, is_yoy, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
-        # 1. 현재 주가 및 화폐 단위 셋팅 (요청사항 2 반영)
+        # 1. 현재 주가 및 화폐 단위 셋팅 (요청사항 2)
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
         if current_price == 0 and not hist.empty:
             current_price = hist['Close'].iloc[-1]
@@ -321,7 +333,7 @@ with tab3:
             currency_symbol = "$"
             price_formatted = f"{currency_symbol} {current_price:,.2f}"
             
-        # 💡 [요청사항 3] 최근 한 달의 월별 평균 주가 전월 대비 증감률(MoM) 계산 로직
+        # 💡 최근 한 달의 월별 평균 주가 전월 대비 증감률(MoM) 계산 (요청사항 3)
         mom_growth = 0.0
         if not hist.empty:
             hist_df = hist.reset_index()
@@ -334,10 +346,10 @@ with tab3:
 
         delta_formatted = f"{mom_growth:+.2f}% (최근 월간 평균 주가 전월대비 MoM)"
         
-        # 주가 상단 배치 (시가총액은 제거함)
+        # 주가 상단 배치 (시가총액 제거 완료)
         st.metric(label="현재 주가", value=price_formatted, delta=delta_formatted)
         
-        # 2. 1년치 주가추세 차트 (요청사항 1 반영 + 크기 고정으로 스크롤 버그 원천 해결)
+        # 2. 1년치 주가추세 차트 (크기 고정으로 스크롤 버그 완전 방어)
         st.markdown("### 📈 최근 1년 주가 추세")
         if not hist.empty:
             fig_trend = go.Figure(go.Scatter(
@@ -347,54 +359,50 @@ with tab3:
             ))
             fig_trend.update_layout(
                 plot_bgcolor='white',
-                width=850, height=350, # 👈 가로크기를 픽셀로 고정하여 스크롤 쪼그라듦 완전 방어!
+                width=850, height=350,
                 margin=dict(l=50, r=40, t=20, b=30),
                 xaxis=dict(showgrid=True, gridcolor='lightgray'),
                 yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat="," if currency != "USD" else ",.2f")
             )
-            st.plotly_chart(fig_trend, use_container_width=False) # 👈 False 설정 필수
+            st.plotly_chart(fig_trend, use_container_width=False)
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
             
-        # 3. 최근 4개분기 매출액 & 영업이익 차트 (요청사항 4 반영)
+        # 3. 최근 4개분기 매출액 & 영업이익 증감률 차트 (요청사항 4)
         if not financials_df.empty:
-            st.markdown("### 📊 최근 4개 분기 실적 실적")
+            st.markdown("### 📊 최근 4개 분기 실적 증감률")
             
-            quarters = [str(col).split(' ')[0] for col in financials_df.columns]
-            
-            # 국가별 화폐 단위에 따른 스케일링 설정
-            if currency == "KRW":
-                scale, unit = 1e8, "(단위: 억 원)"
-            elif currency == "JPY":
-                scale, unit = 1e8, "(단위: 억 엔)"
+            # 💡 작게 표기하는 캡션 부분 (요청사항 반영)
+            if is_yoy:
+                st.caption("※ 전년 동분기 대비 (YoY, %)")
             else:
-                scale, unit = 1e6, "(단위: 백만 달러 / $M)"
+                st.caption("※ 전분기 대비 (QoQ, %) *야후 금융 API 데이터 제공 범위 제한으로 인해 전분기 대비로 표시됩니다.*")
                 
-            st.caption(unit)
+            quarters = [str(col).split(' ')[0] for col in financials_df.columns]
             
             fig_fin = go.Figure()
             
             if '매출액' in financials_df.index:
                 fig_fin.add_trace(go.Bar(
-                    x=quarters, y=financials_df.loc['매출액'] / scale,
-                    name='매출액', marker_color='#1f497d',
-                    text=(financials_df.loc['매출액'] / scale).apply(lambda x: f"{x:,.1f}"),
+                    x=quarters, y=financials_df.loc['매출액'],
+                    name='매출 증감률', marker_color='#1f497d',
+                    text=financials_df.loc['매출액'].apply(lambda x: f"{x:+.1f}%" if pd.notnull(x) else "-"),
                     textposition='outside'
                 ))
             if '영업이익' in financials_df.index:
                 fig_fin.add_trace(go.Bar(
-                    x=quarters, y=financials_df.loc['영업이익'] / scale,
-                    name='영업이익', marker_color='#ed7d31',
-                    text=(financials_df.loc['영업이익'] / scale).apply(lambda x: f"{x:,.1f}"),
+                    x=quarters, y=financials_df.loc['영업이익'],
+                    name='영업이익 증감률', marker_color='#ed7d31',
+                    text=financials_df.loc['영업이익'].apply(lambda x: f"{x:+.1f}%" if pd.notnull(x) else "-"),
                     textposition='outside'
                 ))
                 
             fig_fin.update_layout(
                 barmode='group', plot_bgcolor='white',
-                width=850, height=350, # 👈 분기 차트도 스크롤 버그 방지를 위해 고정 크기 지정
+                width=850, height=350,
                 margin=dict(l=50, r=40, t=30, b=30),
                 xaxis=dict(type='category'),
-                yaxis=dict(showgrid=True, gridcolor='lightgray'),
+                yaxis=dict(showgrid=True, gridcolor='lightgray', title="증감률 (%)"),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             st.plotly_chart(fig_fin, use_container_width=False)
