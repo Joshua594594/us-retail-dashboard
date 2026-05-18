@@ -175,7 +175,7 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (절대 죽지 않는 무적 방어 + 자동 번역)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (월간 평균 주가 + 스크롤 버그 해결 + 뉴스 번역)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
@@ -184,26 +184,23 @@ with tab3:
     def get_complete_company_data(ticker_symbol, selected_company):
         ticker = yf.Ticker(ticker_symbol)
         
-        # 1. 차트 데이터 가져오기 (가장 차단 안 당하는 안전한 API)
+        # 1. 차트 데이터 가져오기 (가장 안전한 API)
         try:
             hist = ticker.history(period="6mo")
         except Exception:
             hist = pd.DataFrame()
             
-        # 2. 기업 정보 가져오기 (차단 당하면 차트 데이터에서 직접 계산!)
+        # 2. 기업 정보 가져오기 (시총/통화 등)
         info_dict = {}
         try:
-            info_dict = ticker.info # 여기서 차단당할 확률 높음
+            info_dict = ticker.info
         except Exception:
-            pass # 차단당하면 쿨하게 무시하고 아래로 넘어갑니다.
+            pass
             
-        # info가 차단당해서 비어있다면, 차트(hist)에서 숫자를 직접 뽑아냅니다.
+        # 백업용 주가 계산 및 통화 하드코딩
         if not info_dict and not hist.empty:
             info_dict['currentPrice'] = hist['Close'].iloc[-1]
             info_dict['previousClose'] = hist['Close'].iloc[-2] if len(hist) > 1 else hist['Close'].iloc[-1]
-            info_dict['fiftyTwoWeekHigh'] = hist['High'].max()
-            
-            # 통화(Currency) 안전 하드코딩
             if ".KS" in ticker_symbol or ".KQ" in ticker_symbol:
                 info_dict['currency'] = "KRW"
             elif ".T" in ticker_symbol:
@@ -211,12 +208,12 @@ with tab3:
             else:
                 info_dict['currency'] = "USD"
                 
-        # 3. 뉴스 데이터 (차단 당하면 바로 구글로 우회)
+        # 3. 뉴스 데이터 우회 수집
         raw_news = []
         try:
             raw_news = ticker.news
         except Exception:
-            pass # 뉴스도 차단당하면 빈 리스트로 넘깁니다.
+            pass
             
         # 4. 번역 프로세스
         from deep_translator import GoogleTranslator
@@ -228,7 +225,6 @@ with tab3:
                 title = item.get('title')
                 link = item.get('link')
                 publisher = item.get('publisher', 'Unknown Source')
-                
                 if title and link:
                     try:
                         ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
@@ -240,7 +236,6 @@ with tab3:
                 if valid_news_count >= 5:
                     break
 
-        # 야후 뉴스가 차단당했거나 없으면 -> 무조건 구글 뉴스 가동!
         if valid_news_count == 0:
             try:
                 import xml.etree.ElementTree as ET
@@ -249,7 +244,6 @@ with tab3:
                 
                 search_term = ticker_symbol.split('.')[0] if '.' in ticker_symbol else selected_company.split(' ')[0]
                 url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_term)}&hl=en-US&gl=US&ceid=US:en"
-                
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 xml_data = urllib.request.urlopen(req).read()
                 
@@ -258,14 +252,12 @@ with tab3:
                     g_title = item.find('title').text
                     g_link = item.find('link').text
                     g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
-                    
                     if g_title and g_link:
                         try:
                             ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
                             display_title = f"[{g_pub}] {ko_g_title}"
                         except Exception:
                             display_title = f"[{g_pub}] {g_title}"
-                            
                         translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link})
                         valid_news_count += 1
             except Exception:
@@ -275,65 +267,90 @@ with tab3:
 
     # 기업 리스트
     companies = {
-        "Walmart (월마트)": "WMT",
-        "Target (타겟)": "TGT",
-        "Kohl's (콜스)": "KSS",
-        "Victoria's Secret (빅토리아 시크릿)": "VSCO",
-        "Abercrombie & Fitch (아베크롬비)": "ANF",
-        "Carter's (카터스)": "CRI",
-        "Fast Retailing (유니클로 모기업)": "9983.T",
-        "Under Armour (언더아머)": "UA",
-        "Amazon (아마존)": "AMZN",
-        "Alibaba (알리바바)": "BABA",
-        "한세실업": "105630.KS",
-        "영원무역": "111770.KS",
-        "노브랜드": "145170.KQ", 
-        "TP inc. (태평양물산)": "007980.KS",
-        "Shinwon (신원)": "009270.KS",
-        "제이에스코퍼레이션": "194370.KS"
+        "Walmart (월마트)": "WMT", "Target (타겟)": "TGT", "Kohl's (콜스)": "KSS",
+        "Victoria's Secret (빅토리아 시크릿)": "VSCO", "Abercrombie & Fitch (아베크롬비)": "ANF",
+        "Carter's (카터스)": "CRI", "Fast Retailing (유니클로 모기업)": "9983.T",
+        "Under Armour (언더아머)": "UA", "Amazon (아마존)": "AMZN", "Alibaba (알리바바)": "BABA",
+        "한세실업": "105630.KS", "영원무역": "111770.KS", "노브랜드": "145170.KQ", 
+        "TP inc. (태평양물산)": "007980.KS", "Shinwon (신원)": "009270.KS", "제이에스코퍼레이션": "194370.KS"
     }
     
     selected_company = st.selectbox("분석할 기업을 선택하세요", list(companies.keys()))
     ticker_symbol = companies[selected_company]
     
     try:
-        # 무적 방어 함수 호출!
         info, hist, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
-        # 1. 상단 미니 카드(Metrics) 배치
-        col1, col2, col3 = st.columns(3)
-        
+        # 💡 [개선 1] 시가총액 유무에 따라 상단 레이아웃 분기 (시총 없으면 깔끔하게 숨김)
+        market_cap = info.get('marketCap', 0)
+        currency = info.get('currency', 'USD')
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
         previous_close = info.get('previousClose', 1)
         price_change = current_price - previous_close
         price_change_pct = (price_change / previous_close) * 100 if previous_close != 0 else 0
-        
-        market_cap = info.get('marketCap', 0)
-        currency = info.get('currency', 'USD')
-        
-        if currency == "KRW":
-            market_cap_formatted = f"{market_cap // 100000000:,} 억 원" if market_cap > 0 else "데이터 없음"
-        elif currency == "JPY":
-            market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔" if market_cap > 0 else "데이터 없음"
+
+        if market_cap > 0:
+            col1, col2 = st.columns(2)
+            if currency == "KRW":
+                market_cap_formatted = f"{market_cap // 100000000:,} 억 원"
+            elif currency == "JPY":
+                market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔"
+            else:
+                market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B"
+                
+            with col1:
+                st.metric(
+                    label=f"현재 주가 ({currency})", 
+                    value=f"{current_price:,.2f}" if currency != "KRW" else f"{int(current_price):,}", 
+                    delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)" if currency != "KRW" else f"{int(price_change):,} ({price_change_pct:.2f}%)"
+                )
+            with col2:
+                st.metric(label="시가총액", value=market_cap_formatted)
         else:
-            market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B" if market_cap > 0 else "데이터 없음"
-            
-        with col1:
             st.metric(
-                label=f"현재 주가 ({currency})", 
+                label=f"현재 주가 ({currency}) - *서버 과부하로 시가총액 일시 숨김*", 
                 value=f"{current_price:,.2f}" if currency != "KRW" else f"{int(current_price):,}", 
                 delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)" if currency != "KRW" else f"{int(price_change):,} ({price_change_pct:.2f}%)"
             )
-        with col2:
-            st.metric(label="시가총액", value=market_cap_formatted)
-        with col3:
-            high_52 = info.get('fiftyTwoWeekHigh', 0)
-            st.metric(label="52주 최고가", value=f"{high_52:,.2f}" if currency != "KRW" else f"{int(high_52):,}")
             
-        # 2. 주가 추이 인터랙티브 라인 차트
-        st.markdown("### 📈 최근 주가 흐름 (6개월)")
+        # 💡 [개선 2] 각 달의 평균값을 구하고 전월 대비(MoM, %) 차트 계산
+        st.markdown("### 📊 월별 평균 주가 전월 대비 증감률 (MoM, %)")
         if not hist.empty:
-            st.line_chart(hist['Close'])
+            # 날짜를 인덱스에서 컬럼으로 빼고 월별 그룹화
+            hist_df = hist.reset_index()
+            hist_df['YearMonth'] = hist_df['Date'].dt.to_period('M')
+            
+            # 월별 주가 평균값 계산
+            monthly_avg = hist_df.groupby('YearMonth')['Close'].mean().reset_index()
+            # 전월 대비 증감률 계산
+            monthly_avg['MoM'] = monthly_avg['Close'].pct_change() * 100
+            # 첫 달은 전월 데이터가 없으므로 제거
+            monthly_avg = monthly_avg.dropna()
+            
+            # 차트용 텍스트 포맷 (예: 2026-03)
+            monthly_avg['YearMonth_str'] = monthly_avg['YearMonth'].astype(str)
+            
+            # 💡 [개선 3] 스크롤 시 쪼그라듦 방지를 위해 Plotly 객체 직접 생성 및 크기 고정
+            bar_colors = ['#CC0000' if val < 0 else '#0070C0' for val in monthly_avg['MoM']]
+            fig_monthly = go.Figure(go.Bar(
+                x=monthly_avg['YearMonth_str'],
+                y=monthly_avg['MoM'],
+                text=monthly_avg['MoM'].apply(lambda x: f"{x:.1f}%"),
+                textposition='outside',
+                marker_color=bar_colors
+            ))
+            
+            fig_monthly.update_layout(
+                plot_bgcolor='white',
+                # 픽셀 너비를 800 이상으로 고정하여 스크롤 시 무너지지 않게 방어합니다.
+                width=850, 
+                height=350,
+                margin=dict(l=40, r=40, t=30, b=30),
+                yaxis=dict(title="증감률 (%)", showgrid=True, gridcolor='lightgray'),
+                xaxis=dict(type='category')
+            )
+            # 고정형 차트 출력 (use_container_width를 False로 하여 스크롤 버그 원천 차단)
+            st.plotly_chart(fig_monthly, use_container_width=False)
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
