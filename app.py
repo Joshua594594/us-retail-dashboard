@@ -175,25 +175,23 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (1년 주가 추세 + 분기 실적 증감률 + 뉴스 번역)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (1년 주가 추세 + 전분기 실적 증감률 + 뉴스 번역)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 주가, 분기 재무제표, 뉴스를 한 번에 불러와 10분간 캐싱하는 함수
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company):
         ticker = yf.Ticker(ticker_symbol)
         
-        # 1. 1년치 주가 데이터 가져오기 (요청사항 1)
+        # 1. 1년치 주가 데이터 가져오기
         try:
             hist = ticker.history(period="1y")
         except Exception:
             hist = pd.DataFrame()
             
-        # 2. 분기 실적 데이터 가져오기 (매출/영업이익 증감률 버전)
+        # 2. 분기 실적 데이터 (💡 핵심 수정: 전분기 대비로 변경하여 빈칸 최소화)
         financials_df = pd.DataFrame()
-        is_yoy = False
         try:
             q_fin = ticker.quarterly_financials
             if q_fin is not None and not q_fin.empty:
@@ -216,20 +214,13 @@ with tab3:
                     # 과거 -> 현재 순으로 날짜 정렬
                     raw_fin = raw_fin.reindex(columns=sorted(raw_fin.columns))
                     
-                    # 💡 기본적으로 요청하신 전년 동분기 대비(periods=4) 계산 시도
-                    growth_df = raw_fin.pct_change(periods=4, axis=1) * 100
+                    # 💡 야후 파이낸스는 최근 4개 분기만 주므로, '전분기 대비(periods=1)'로 해야 모두 표현됩니다.
+                    growth_df = raw_fin.pct_change(periods=1, axis=1) * 100
                     financials_df = growth_df.iloc[:, -4:]
-                    is_yoy = True
-                    
-                    # 만약 API 데이터 부족으로 YoY 결과가 전부 비어있으면(NaN) 전분기 대비(periods=1)로 안전하게 폴백
-                    if financials_df.isna().all().all() or financials_df.empty:
-                        growth_df = raw_fin.pct_change(periods=1, axis=1) * 100
-                        financials_df = growth_df.iloc[:, -4:]
-                        is_yoy = False
         except Exception:
             pass
             
-        # 3. 기업 기본 정보 가져오기 (통화 정보 파악용)
+        # 3. 기업 기본 정보 가져오기
         info_dict = {}
         try:
             info_dict = ticker.info
@@ -297,7 +288,7 @@ with tab3:
             except Exception:
                 pass
                 
-        return info_dict, hist, financials_df, is_yoy, translated_news
+        return info_dict, hist, financials_df, translated_news
 
     # 대상 기업 리스트
     companies = {
@@ -313,10 +304,9 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        # 무적 캐싱 함수 가동
-        info, hist, financials_df, is_yoy, final_news = get_complete_company_data(ticker_symbol, selected_company)
+        info, hist, financials_df, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
-        # 1. 현재 주가 및 화폐 단위 셋팅 (요청사항 2)
+        # 1. 현재 주가 및 화폐 단위 셋팅
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
         if current_price == 0 and not hist.empty:
             current_price = hist['Close'].iloc[-1]
@@ -333,7 +323,7 @@ with tab3:
             currency_symbol = "$"
             price_formatted = f"{currency_symbol} {current_price:,.2f}"
             
-        # 💡 최근 한 달의 월별 평균 주가 전월 대비 증감률(MoM) 계산 (요청사항 3)
+        # 최근 한 달의 월별 평균 주가 전월 대비 증감률(MoM)
         mom_growth = 0.0
         if not hist.empty:
             hist_df = hist.reset_index()
@@ -345,11 +335,9 @@ with tab3:
                 mom_growth = ((latest_avg / prev_avg) - 1) * 100
 
         delta_formatted = f"{mom_growth:+.2f}% (최근 월간 평균 주가 전월대비 MoM)"
-        
-        # 주가 상단 배치 (시가총액 제거 완료)
         st.metric(label="현재 주가", value=price_formatted, delta=delta_formatted)
         
-        # 2. 1년치 주가추세 차트 (크기 고정으로 스크롤 버그 완전 방어)
+        # 2. 1년치 주가추세 차트
         st.markdown("### 📈 최근 1년 주가 추세")
         if not hist.empty:
             fig_trend = go.Figure(go.Scatter(
@@ -368,15 +356,11 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
             
-        # 3. 최근 4개분기 매출액 & 영업이익 증감률 차트 (요청사항 4)
+        # 3. 최근 4개분기 매출액 & 영업이익 증감률 차트 (전분기 대비 적용)
         if not financials_df.empty:
             st.markdown("### 📊 최근 4개 분기 실적 증감률")
-            
-            # 💡 작게 표기하는 캡션 부분 (요청사항 반영)
-            if is_yoy:
-                st.caption("※ 전년 동분기 대비 (YoY, %)")
-            else:
-                st.caption("※ 전분기 대비 (QoQ, %) *야후 금융 API 데이터 제공 범위 제한으로 인해 전분기 대비로 표시됩니다.*")
+            # 상황에 맞게 캡션 수정
+            st.caption("※ 전분기 대비 (QoQ, %) *야후 금융 API의 과거 데이터 제공 한계로 인해 전분기 대비로 표기됩니다.*")
                 
             quarters = [str(col).split(' ')[0] for col in financials_df.columns]
             
