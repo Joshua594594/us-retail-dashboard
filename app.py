@@ -175,20 +175,78 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 캐싱 + 뉴스 방어)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 전체 캐싱 완벽 판)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 주가 데이터를 10분간 메모리에 캐싱하는 함수
+    # 💡 [핵심 해결책] 주가, 차트뿐만 아니라 '한글로 번역된 뉴스 리스트'까지 통째로 10분간 캐싱합니다!
     @st.cache_data(ttl=600)
-    def get_company_data(ticker_symbol):
+    def get_complete_company_data(ticker_symbol, selected_company):
+        # 1. 야후 파이낸스 기본 데이터 호출
         ticker = yf.Ticker(ticker_symbol)
         info = ticker.info
         hist = ticker.history(period="6mo")
-        news = ticker.news
-        return info, hist, news
+        raw_news = ticker.news
+        
+        # 2. 뉴스 한글 번역 프로세스 진행
+        from deep_translator import GoogleTranslator
+        translated_news = []
+        valid_news_count = 0
+        
+        # 야후 뉴스 우선 번역
+        if raw_news:
+            for item in raw_news:
+                title = item.get('title')
+                link = item.get('link')
+                publisher = item.get('publisher', 'Unknown Source')
+                
+                if title and link:
+                    try:
+                        ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
+                        display_title = f"[{publisher}] {ko_title}"
+                    except Exception:
+                        display_title = f"[{publisher}] {title} (번역 실패)"
+                    
+                    translated_news.append({"title": display_title, "orig_title": title, "link": link, "pub": publisher})
+                    valid_news_count += 1
+                if valid_news_count >= 5:
+                    break
 
+        # 야후 뉴스가 없으면 구글 뉴스 RSS 백업 및 번역
+        if valid_news_count == 0:
+            try:
+                import xml.etree.ElementTree as ET
+                import urllib.request
+                import urllib.parse
+                
+                search_term = ticker_symbol.split('.')[0] if '.' in ticker_symbol else selected_company.split(' ')[0]
+                url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_term)}&hl=en-US&gl=US&ceid=US:en"
+                
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                xml_data = urllib.request.urlopen(req).read()
+                
+                root = ET.fromstring(xml_data)
+                for item in root.findall('.//item')[:5]:
+                    g_title = item.find('title').text
+                    g_link = item.find('link').text
+                    g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
+                    
+                    if g_title and g_link:
+                        try:
+                            ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
+                            display_title = f"[{g_pub}] {ko_g_title}"
+                        except Exception:
+                            display_title = f"[{g_pub}] {g_title} (번역 실패)"
+                            
+                        translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link, "pub": g_pub})
+                        valid_news_count += 1
+            except Exception:
+                pass
+                
+        return info, hist, translated_news
+
+    # 기업 리스트 정의
     companies = {
         "Walmart (월마트)": "WMT",
         "Target (타겟)": "TGT",
@@ -212,8 +270,8 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        # 캐싱된 함수 호출
-        info, hist, news_list = get_company_data(ticker_symbol)
+        # 💡 한글로 싹 구워진 데이터를 캐시 저장소에서 아주 안전하게 받아옵니다.
+        info, hist, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
         # 1. 상단 미니 카드(Metrics) 배치
         col1, col2, col3 = st.columns(3)
@@ -252,72 +310,16 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-       # 3. 최신 뉴스 리스트 연동 (실시간 한글 번역 시스템 탑재)
+        # 3. 최신 뉴스 리스트 연동 (이미 한글 번역이 완료되어 캐싱된 상태)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스 (한글 번역)")
         
-        # 번역기 라이브러리 호출
-        from deep_translator import GoogleTranslator
-        
-        valid_news_count = 0
-        
-        # 야후 뉴스 체크 및 번역
-        if news_list:
-            for item in news_list:
-                title = item.get('title')
-                link = item.get('link')
-                publisher = item.get('publisher', 'Unknown Source')
-                
-                if title and link:
-                    try:
-                        # 💡 영어 제목을 한글로 실시간 번역합니다.
-                        ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
-                        display_title = f"[{publisher}] {ko_title}"
-                    except Exception:
-                        display_title = f"[{publisher}] {title} (번역 실패)"
-                        
-                    with st.expander(display_title):
-                        st.write(f"**원본 제목:** {title}")
-                        st.write(f"[기사 원문 링크]({link})")
-                    valid_news_count += 1
-                if valid_news_count >= 5:
-                    break
-
-        # 야후 뉴스가 없으면 구글 뉴스 RSS로 우회 및 번역
-        if valid_news_count == 0:
-            try:
-                import xml.etree.ElementTree as ET
-                import urllib.request
-                import urllib.parse
-                
-                search_term = ticker_symbol.split('.')[0] if '.' in ticker_symbol else selected_company.split(' ')[0]
-                url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_term)}&hl=en-US&gl=US&ceid=US:en"
-                
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                xml_data = urllib.request.urlopen(req).read()
-                
-                root = ET.fromstring(xml_data)
-                for item in root.findall('.//item')[:5]:
-                    g_title = item.find('title').text
-                    g_link = item.find('link').text
-                    g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
-                    
-                    if g_title and g_link:
-                        try:
-                            # 💡 구글 RSS 뉴스 제목도 한글로 번역합니다.
-                            ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
-                            display_title = f"[{g_pub}] {ko_g_title}"
-                        except Exception:
-                            display_title = f"[{g_pub}] {g_title} (번역 실패)"
-                            
-                        with st.expander(display_title):
-                            st.write(f"**원본 제목:** {g_title}")
-                            st.write(f"[기사 원문 링크]({g_link})")
-                        valid_news_count += 1
-            except Exception as e:
-                pass
-
-        if valid_news_count == 0:
+        if final_news:
+            for item in final_news:
+                with st.expander(item['title']):
+                    st.write(f"**원본 제목:** {item['orig_title']}")
+                    st.write(f"[기사 원문 링크]({item['link']})")
+        else:
             st.info("현재 해당 기업과 관련된 최신 뉴스 기사를 불러올 수 없습니다.")
             
     except Exception as e:
