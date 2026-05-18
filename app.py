@@ -2,13 +2,18 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
+import yfinance as yf # 👈 금융 데이터 호출용
 
 # 1. 페이지 설정 및 제목
 st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
-st.title("📊 US Market & Trade Dashboard")
+st.title("📊 US Market & Trade & Company Dashboard")
 
-# 2. 탭 생성 (에러 방지를 위해 반드시 코드 상단에 위치해야 합니다)
-tab1, tab2 = st.tabs(["🛒 미국 소매 판매 현황 (FRED)", "🌐 미국 의류 수입 현황 (OTEXA)"])
+# 2. 탭 생성 (이제 탭이 3개입니다!)
+tab1, tab2, tab3 = st.tabs([
+    "🛒 미국 소매 판매 현황 (FRED)", 
+    "🌐 미국 의류 수입 현황 (OTEXA)", 
+    "🏢 글로벌 패션·유통 기업 모니터링"
+])
 
 # ==========================================
 # [Tab 1] 미국 소매 판매 현황 (FRED)
@@ -35,22 +40,11 @@ with tab1:
         ytd_growth = ytd_growth.dropna().reset_index()
         ytd_growth.columns = ['Category', 'Growth']
         
-        # [요청사항 1] 커스텀 정렬 순서 정의
         custom_order_keywords = [
-            "Retail Trade Total",
-            "Nonstore Retailers",
-            "Sporting Goods",
-            "General Merchandise",
-            "Furniture",
-            "Electronics",
-            "Clothing",
-            "Motor Vehicle",
-            "Building",
-            "Food and Beverage",
-            "Health",
-            "Gasoline",
-            "Miscellaneous",
-            "Offline"
+            "Retail Trade Total", "Nonstore Retailers", "Sporting Goods", 
+            "General Merchandise", "Furniture", "Electronics", "Clothing", 
+            "Motor Vehicle", "Building", "Food and Beverage", "Health", 
+            "Gasoline", "Miscellaneous", "Offline"
         ]
         
         ordered_categories = []
@@ -63,17 +57,11 @@ with tab1:
             if cat not in ordered_categories:
                 ordered_categories.append(cat)
 
-        # Plotly용 정렬 (아래에서 위로 그려지므로 역순 배치)
         ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=ordered_categories, ordered=True)
         ytd_growth = ytd_growth.sort_values('Category', ascending=False)
         
         colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
         
-        # [요청사항 2] Clothing 카테고리에 레드 박스(테두리)
-        line_colors = ['red' if 'Clothing' in cat else 'rgba(0,0,0,0)' for cat in ytd_growth['Category']]
-        line_widths = [3 if 'Clothing' in cat else 0 for cat in ytd_growth['Category']]
-        
-      # [그래프 생성]
         fig = go.Figure(go.Bar(
             x=ytd_growth['Growth'],
             y=ytd_growth['Category'],
@@ -84,7 +72,7 @@ with tab1:
             marker_line_width=0 
         ))
 
-        # 💡 [핵심 수정] xref="paper"를 사용하여 왼쪽 라벨 끝부터 박스를 시작합니다.
+        # 긴 레드 박스 (라벨 끝까지 확장 버전)
         target_cat = "Clothing and Clothing Access. Stores"
         cat_list = ytd_growth['Category'].tolist()
         
@@ -92,30 +80,18 @@ with tab1:
             target_idx = [i for i, c in enumerate(cat_list) if target_cat in c][0]
             
             fig.add_shape(
-                type="rect",
-                # x0=0, x1=1 은 그래프 종이의 왼쪽 끝에서 오른쪽 끝을 의미합니다.
-                xref="paper", 
-                x0=-0.18,  # 👈 이 수치를 조절하여 왼쪽 라벨이 더 많이 덮이게 합니다 (-0.3 등으로 조절 가능)
-                x1=1.0,   # 👈 오른쪽 끝 수치
-                yref="y",
-                y0=target_idx - 0.5,
-                y1=target_idx + 0.5,
+                type="rect", xref="paper", x0=-0.25, x1=1.05, yref="y",
+                y0=target_idx - 0.4, y1=target_idx + 0.4,
                 line=dict(color="Red", width=2),
-                fillcolor="rgba(255, 0, 0, 0.05)",
-                layer="below" # 막대 그래프 뒤로 박스를 보내서 숫자가 잘 보이게 함
+                fillcolor="rgba(255, 0, 0, 0.05)", layer="below"
             )
 
         fig.update_layout(
-            plot_bgcolor='white', 
-            height=600, 
-            # 💡 왼쪽 여백(l)을 280에서 350으로 더 넉넉하게 늘립니다.
-            margin=dict(l=350, r=50, t=30, b=0), 
+            plot_bgcolor='white', height=600, 
+            margin=dict(l=350, r=50, t=30, b=0), # l(왼쪽 여백)을 350으로 넉넉히 설정
             xaxis=dict(showgrid=True, gridcolor='lightgray'),
             yaxis=dict(
-                categoryorder='array', 
-                categoryarray=ordered_categories[::-1],
-                # 💡 automargin을 True로 하면 짤리는 글자를 방지하기 위해 
-                # 차트가 스스로 여백을 계산합니다.
+                categoryorder='array', categoryarray=ordered_categories[::-1],
                 automargin=True 
             )
         )
@@ -197,3 +173,50 @@ with tab2:
         
     except Exception as e:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
+
+# ==========================================
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동)
+# ==========================================
+with tab3:
+    st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
+    
+    # 💡 요청하신 모든 기업의 야후 파이낸스 공식 티커 매핑
+    # 한국 기업 코스피는 .KS, 코스닥은 .KQ / 일본 주식은 .T / 미국 주식은 심볼 그대로 사용
+    companies = {
+        "Walmart (월마트)": "WMT",
+        "Target (타겟)": "TGT",
+        "Kohl's (콜스)": "KSS",
+        "Victoria's Secret (빅토리아 시크릿)": "VSCO",
+        "Abercrombie & Fitch (아베크롬비)": "ANF",
+        "Carter's (카터스)": "CRI",
+        "Fast Retailing (유니클로 모기업)": "9983.T",
+        "Under Armour (언더아머)": "UA",
+        "Amazon (아마존)": "AMZN",
+        "Alibaba (알리바바)": "BABA",
+        "한세실업": "105630.KS",
+        "영원무역": "111770.KS",
+        "노브랜드": "145170.KQ", 
+        "TP inc. (태평양물산)": "007980.KS",
+        "Shinwon (신원)": "009270.KS",
+        "제이에스코퍼레이션": "194370.KS"
+    }
+    
+    selected_company = st.selectbox("분석할 기업을 선택하세요", list(companies.keys()))
+    ticker_symbol = companies[selected_company]
+    
+    try:
+        # 실시간 데이터 엔진 가동
+        ticker = yf.Ticker(ticker_symbol)
+        info = ticker.info
+        
+        # 1. 상단 미니 카드(Metrics) 배치
+        col1, col2, col3 = st.columns(3)
+        
+        current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
+        previous_close = info.get('previousClose', 1) # 0 나누기 방지
+        price_change = current_price - previous_close
+        price_change_pct = (price_change / previous_close) * 100
+        
+        # 시가총액 단위 환산 (국가별 통화 반영)
+        market_cap = info.get('marketCap', 0)
+        currency = info.get('
