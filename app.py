@@ -175,12 +175,21 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 캐싱)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 요청하신 모든 기업의 야후 파이낸스 공식 티커 매핑
+    # 💡 [보안/안정성 추가] 주가 데이터를 10분간 메모리에 캐싱하는 함수를 만듭니다.
+    @st.cache_data(ttl=600) # ttl=600은 600초(10분) 동안 야후 서버 재요청을 막아줍니다!
+    def get_company_data(ticker_symbol):
+        ticker = yf.Ticker(ticker_symbol)
+        # 필요한 정보만 딕셔너리로 안전하게 추출
+        info = ticker.info
+        hist = ticker.history(period="6mo")
+        news = ticker.news
+        return info, hist, news
+
     companies = {
         "Walmart (월마트)": "WMT",
         "Target (타겟)": "TGT",
@@ -204,19 +213,17 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        # 실시간 데이터 엔진 가동
-        ticker = yf.Ticker(ticker_symbol)
-        info = ticker.info
+        # 캐싱된 함수를 호출하여 데이터를 안전하게 가져옵니다.
+        info, hist, news_list = get_company_data(ticker_symbol)
         
         # 1. 상단 미니 카드(Metrics) 배치
         col1, col2, col3 = st.columns(3)
         
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
-        previous_close = info.get('previousClose', 1) # 0 나누기 방지
+        previous_close = info.get('previousClose', 1)
         price_change = current_price - previous_close
         price_change_pct = (price_change / previous_close) * 100
         
-        # 시가총액 단위 환산 (국가별 통화 반영)
         market_cap = info.get('marketCap', 0)
         currency = info.get('currency', 'USD')
         
@@ -241,7 +248,6 @@ with tab3:
             
         # 2. 주가 추이 인터랙티브 라인 차트
         st.markdown("### 📈 최근 주가 흐름 (6개월)")
-        hist = ticker.history(period="6mo")
         if not hist.empty:
             st.line_chart(hist['Close'])
         else:
@@ -251,7 +257,6 @@ with tab3:
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
         
-        news_list = ticker.news
         if news_list:
             for item in news_list[:5]:
                 with st.expander(item['title']):
