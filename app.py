@@ -447,7 +447,7 @@ with tab3:
     except Exception as e:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
-        # ==========================================
+# ==========================================
 # [Tab 4] 🌐 거시경제 및 원가 지표 (100% 실시간 자동화)
 # ==========================================
 with tab4:
@@ -497,7 +497,7 @@ with tab4:
     try:
         yf_data, fred_data = get_macro_data()
         
-        # --- 1층: 환율 동향 (엔/달러가 빠진 대신 원/달러를 와이드하게 배치) ---
+        # --- 1층: 환율 동향 ---
         st.markdown("### 💱 원/달러 환율 동향 (최근 1년)")
         if not yf_data["원/달러 환율"].empty:
             current_krw = yf_data["원/달러 환율"].iloc[-1]
@@ -507,7 +507,7 @@ with tab4:
             ))
             fig_krw.update_layout(
                 title=f"원/달러 환율 (현재: {current_krw:,.2f}원)", 
-                width=850, height=300, # 가로 850 픽셀로 넓고 시원하게 고정
+                width=850, height=300,
                 margin=dict(l=30, r=30, t=40, b=30), 
                 plot_bgcolor='white', 
                 xaxis=dict(showgrid=True, gridcolor='lightgray'), 
@@ -542,4 +542,23 @@ with tab4:
         st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED) - IMF 등 글로벌 기관의 원천 데이터와 동일합니다.")
         
         col5, col6 = st.columns(2)
+        
         with col5:
+            if not fred_data["미국 실질 GDP"].empty:
+                fig_gdp = go.Figure(go.Scatter(x=fred_data["미국 실질 GDP"].index, y=fred_data["미국 실질 GDP"], mode='lines+markers', line=dict(color='#8E44AD', width=2)))
+                fig_gdp.update_layout(title="미국 실질 GDP (분기별)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_gdp, use_container_width=True)
+                
+        with col6:
+            if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
+                fig_cpi = go.Figure(go.Scatter(x=fred_data["미국 의류 소비자물가지수(CPI)"].index, y=fred_data["미국 의류 소비자물가지수(CPI)"], mode='lines', line=dict(color='#D35400', width=2)))
+                fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_cpi, use_container_width=True)
+
+        if not fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].empty:
+            fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].index, y=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
+            fig_inv.update_layout(title="미국 소매업 재고율 (높을수록 창고에 재고가 많음을 의미)", width=850, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
+            st.plotly_chart(fig_inv, use_container_width=False)
+
+    except Exception as e:
+        st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
