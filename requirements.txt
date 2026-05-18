@@ -1,5 +1,6 @@
-pandas
-requests
-openpyxl
 streamlit
+pandas
 plotly
+numpy
+openpyxl
+yfinance
