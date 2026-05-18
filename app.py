@@ -253,17 +253,29 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-        # 3. 최신 뉴스 리스트 연동
+        # 3. 최신 뉴스 리스트 연동 (안전망 강화 버전)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
         
         if news_list:
-            for item in news_list[:5]:
-                with st.expander(item['title']):
-                    st.write(f"**출처:** {item['publisher']}")
-                    st.write(f"[기사 원문 링크]({item['link']})")
+            valid_news_count = 0
+            for item in news_list:
+                # 💡 핵심 수정: title과 link가 둘 다 안전하게 존재하는 기사만 골라냅니다!
+                title = item.get('title')
+                link = item.get('link')
+                publisher = item.get('publisher', 'Unknown Source')
+                
+                if title and link:
+                    with st.expander(title):
+                        st.write(f"**출처:** {publisher}")
+                        st.write(f"[기사 원문 링크]({link})")
+                    valid_news_count += 1
+                
+                # 최신 뉴스 5개까지만 노출하고 반복문 종료
+                if valid_news_count >= 5:
+                    break
+                    
+            if valid_news_count == 0:
+                st.info("현재 표시할 수 있는 유효한 최신 뉴스 기사가 없습니다.")
         else:
             st.info("현재 해당 기업과 관련된 최신 뉴스 기사가 없습니다.")
-            
-    except Exception as e:
-        st.error(f"데이터를 가져오는 중 일시적인 오류가 발생했습니다: {e}")
