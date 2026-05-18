@@ -180,8 +180,7 @@ with tab2:
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 요청하신 모든 기업의 야후 파이낸스 공식 티커 매핑
-    # 한국 기업 코스피는 .KS, 코스닥은 .KQ / 일본 주식은 .T / 미국 주식은 심볼 그대로 사용
+    # 요청하신 모든 기업의 야후 파이낸스 공식 티커 매핑
     companies = {
         "Walmart (월마트)": "WMT",
         "Target (타겟)": "TGT",
@@ -217,9 +216,49 @@ with tab3:
         price_change = current_price - previous_close
         price_change_pct = (price_change / previous_close) * 100
         
-        # 💡 요기 아래 두 줄이 온전하게 들어가 있는지 확인해 주세요!
+        # 시가총액 단위 환산 (국가별 통화 반영)
         market_cap = info.get('marketCap', 0)
         currency = info.get('currency', 'USD')
         
         if currency == "KRW":
             market_cap_formatted = f"{market_cap // 100000000:,} 억 원"
+        elif currency == "JPY":
+            market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔"
+        else:
+            market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B (십억 달러)"
+            
+        with col1:
+            st.metric(
+                label=f"현재 주가 ({currency})", 
+                value=f"{current_price:,.2f}" if currency != "KRW" else f"{int(current_price):,}", 
+                delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)" if currency != "KRW" else f"{int(price_change):,} ({price_change_pct:.2f}%)"
+            )
+        with col2:
+            st.metric(label="시가총액", value=market_cap_formatted)
+        with col3:
+            high_52 = info.get('fiftyTwoWeekHigh', 0)
+            st.metric(label="52주 최고가", value=f"{high_52:,.2f}" if currency != "KRW" else f"{int(high_52):,}")
+            
+        # 2. 주가 추이 인터랙티브 라인 차트
+        st.markdown("### 📈 최근 주가 흐름 (6개월)")
+        hist = ticker.history(period="6mo")
+        if not hist.empty:
+            st.line_chart(hist['Close'])
+        else:
+            st.info("주가 차트 데이터를 불러올 수 없습니다.")
+        
+        # 3. 최신 뉴스 리스트 연동
+        st.markdown("---")
+        st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
+        
+        news_list = ticker.news
+        if news_list:
+            for item in news_list[:5]:
+                with st.expander(item['title']):
+                    st.write(f"**출처:** {item['publisher']}")
+                    st.write(f"[기사 원문 링크]({item['link']})")
+        else:
+            st.info("현재 해당 기업과 관련된 최신 뉴스 기사가 없습니다.")
+            
+    except Exception as e:
+        st.error(f"데이터를 가져오는 중 일시적인 오류가 발생했습니다: {e}")
