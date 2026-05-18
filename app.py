@@ -217,6 +217,9 @@ with tab3:
         price_change = current_price - previous_close
         price_change_pct = (price_change / previous_close) * 100
         
-        # 시가총액 단위 환산 (국가별 통화 반영)
+        # 💡 요기 아래 두 줄이 온전하게 들어가 있는지 확인해 주세요!
         market_cap = info.get('marketCap', 0)
-        currency = info.get('
+        currency = info.get('currency', 'USD')
+        
+        if currency == "KRW":
+            market_cap_formatted = f"{market_cap // 100000000:,} 억 원"
