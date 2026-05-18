@@ -175,48 +175,70 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (월간 평균 주가 + 스크롤 버그 해결 + 뉴스 번역)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (1년 주가 추세 + 분기 실적 + 뉴스 번역 + 무적 캐싱)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
+    # 💡 주가, 분기 재무제표, 뉴스를 한 번에 불러와 10분간 캐싱하는 무적의 함수
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company):
         ticker = yf.Ticker(ticker_symbol)
         
-        # 1. 차트 데이터 가져오기 (가장 안전한 API)
+        # 1. 1년치 주가 데이터 가져오기 (요청사항 1 반영)
         try:
-            hist = ticker.history(period="6mo")
+            hist = ticker.history(period="1y")
         except Exception:
             hist = pd.DataFrame()
             
-        # 2. 기업 정보 가져오기 (시총/통화 등)
+        # 2. 분기 실적 데이터 가져오기 (요청사항 4 반영 - 캐싱 처리로 먹통 걱정 제로!)
+        financials_df = pd.DataFrame()
+        try:
+            q_fin = ticker.quarterly_financials
+            if q_fin is not None and not q_fin.empty:
+                # 야후 파이낸스 고유 계정명 매칭 (매출액 및 영업이익)
+                revenue_idx = [idx for idx in q_fin.index if 'Total Revenue' in idx or 'Revenue' in idx]
+                op_inc_idx = [idx for idx in q_fin.index if 'Operating Income' in idx]
+                
+                rows_to_extract = []
+                row_labels = []
+                if revenue_idx:
+                    rows_to_extract.append(revenue_idx[0])
+                    row_labels.append('매출액')
+                if op_inc_idx:
+                    rows_to_extract.append(op_inc_idx[0])
+                    row_labels.append('영업이익')
+                    
+                if rows_to_extract:
+                    financials_df = q_fin.loc[rows_to_extract].copy()
+                    financials_df.index = row_labels
+                    financials_df = financials_df.iloc[:, :4] # 최근 4개 분기만 컷
+                    financials_df = financials_df.iloc[:, ::-1] # 과거에서 현재 순으로 컬럼 뒤집기
+        except Exception:
+            pass
+            
+        # 3. 기업 기본 정보 가져오기 (통화 정보 파악용)
         info_dict = {}
         try:
             info_dict = ticker.info
         except Exception:
             pass
             
-        # 백업용 주가 계산 및 통화 하드코딩
-        if not info_dict and not hist.empty:
-            info_dict['currentPrice'] = hist['Close'].iloc[-1]
-            info_dict['previousClose'] = hist['Close'].iloc[-2] if len(hist) > 1 else hist['Close'].iloc[-1]
-            if ".KS" in ticker_symbol or ".KQ" in ticker_symbol:
-                info_dict['currency'] = "KRW"
-            elif ".T" in ticker_symbol:
-                info_dict['currency'] = "JPY"
-            else:
-                info_dict['currency'] = "USD"
+        if ".KS" in ticker_symbol or ".KQ" in ticker_symbol:
+            info_dict['currency'] = "KRW"
+        elif ".T" in ticker_symbol:
+            info_dict['currency'] = "JPY"
+        else:
+            info_dict['currency'] = "USD"
                 
-        # 3. 뉴스 데이터 우회 수집
+        # 4. 뉴스 데이터 가져오기 및 번역
+        from deep_translator import GoogleTranslator
         raw_news = []
         try:
             raw_news = ticker.news
         except Exception:
             pass
             
-        # 4. 번역 프로세스
-        from deep_translator import GoogleTranslator
         translated_news = []
         valid_news_count = 0
         
@@ -263,9 +285,9 @@ with tab3:
             except Exception:
                 pass
                 
-        return info_dict, hist, translated_news
+        return info_dict, hist, financials_df, translated_news
 
-    # 기업 리스트
+    # 대상 기업 리스트
     companies = {
         "Walmart (월마트)": "WMT", "Target (타겟)": "TGT", "Kohl's (콜스)": "KSS",
         "Victoria's Secret (빅토리아 시크릿)": "VSCO", "Abercrombie & Fitch (아베크롬비)": "ANF",
@@ -279,82 +301,107 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        info, hist, final_news = get_complete_company_data(ticker_symbol, selected_company)
+        # 무적 캐싱 함수 가동
+        info, hist, financials_df, final_news = get_complete_company_data(ticker_symbol, selected_company)
         
-        # 💡 [개선 1] 시가총액 유무에 따라 상단 레이아웃 분기 (시총 없으면 깔끔하게 숨김)
-        market_cap = info.get('marketCap', 0)
-        currency = info.get('currency', 'USD')
+        # 1. 현재 주가 및 화폐 단위 셋팅 (요청사항 2 반영)
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
-        previous_close = info.get('previousClose', 1)
-        price_change = current_price - previous_close
-        price_change_pct = (price_change / previous_close) * 100 if previous_close != 0 else 0
-
-        if market_cap > 0:
-            col1, col2 = st.columns(2)
-            if currency == "KRW":
-                market_cap_formatted = f"{market_cap // 100000000:,} 억 원"
-            elif currency == "JPY":
-                market_cap_formatted = f"¥ {market_cap // 100000000:,} 억 엔"
-            else:
-                market_cap_formatted = f"$ {market_cap / 1000000000:,.2f} B"
-                
-            with col1:
-                st.metric(
-                    label=f"현재 주가 ({currency})", 
-                    value=f"{current_price:,.2f}" if currency != "KRW" else f"{int(current_price):,}", 
-                    delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)" if currency != "KRW" else f"{int(price_change):,} ({price_change_pct:.2f}%)"
-                )
-            with col2:
-                st.metric(label="시가총액", value=market_cap_formatted)
-        else:
-            st.metric(
-                label=f"현재 주가 ({currency}) - *서버 과부하로 시가총액 일시 숨김*", 
-                value=f"{current_price:,.2f}" if currency != "KRW" else f"{int(current_price):,}", 
-                delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)" if currency != "KRW" else f"{int(price_change):,} ({price_change_pct:.2f}%)"
-            )
+        if current_price == 0 and not hist.empty:
+            current_price = hist['Close'].iloc[-1]
             
-        # 💡 [개선 2] 각 달의 평균값을 구하고 전월 대비(MoM, %) 차트 계산
-        st.markdown("### 📊 월별 평균 주가 전월 대비 증감률 (MoM, %)")
+        currency = info.get('currency', 'USD')
+        
+        if currency == "KRW":
+            currency_symbol = "₩"
+            price_formatted = f"{currency_symbol} {int(current_price):,}"
+        elif currency == "JPY":
+            currency_symbol = "¥"
+            price_formatted = f"{currency_symbol} {int(current_price):,}"
+        else:
+            currency_symbol = "$"
+            price_formatted = f"{currency_symbol} {current_price:,.2f}"
+            
+        # 💡 [요청사항 3] 최근 한 달의 월별 평균 주가 전월 대비 증감률(MoM) 계산 로직
+        mom_growth = 0.0
         if not hist.empty:
-            # 날짜를 인덱스에서 컬럼으로 빼고 월별 그룹화
             hist_df = hist.reset_index()
             hist_df['YearMonth'] = hist_df['Date'].dt.to_period('M')
-            
-            # 월별 주가 평균값 계산
             monthly_avg = hist_df.groupby('YearMonth')['Close'].mean().reset_index()
-            # 전월 대비 증감률 계산
-            monthly_avg['MoM'] = monthly_avg['Close'].pct_change() * 100
-            # 첫 달은 전월 데이터가 없으므로 제거
-            monthly_avg = monthly_avg.dropna()
-            
-            # 차트용 텍스트 포맷 (예: 2026-03)
-            monthly_avg['YearMonth_str'] = monthly_avg['YearMonth'].astype(str)
-            
-            # 💡 [개선 3] 스크롤 시 쪼그라듦 방지를 위해 Plotly 객체 직접 생성 및 크기 고정
-            bar_colors = ['#CC0000' if val < 0 else '#0070C0' for val in monthly_avg['MoM']]
-            fig_monthly = go.Figure(go.Bar(
-                x=monthly_avg['YearMonth_str'],
-                y=monthly_avg['MoM'],
-                text=monthly_avg['MoM'].apply(lambda x: f"{x:.1f}%"),
-                textposition='outside',
-                marker_color=bar_colors
+            if len(monthly_avg) >= 2:
+                latest_avg = monthly_avg['Close'].iloc[-1]
+                prev_avg = monthly_avg['Close'].iloc[-2]
+                mom_growth = ((latest_avg / prev_avg) - 1) * 100
+
+        delta_formatted = f"{mom_growth:+.2f}% (최근 월간 평균 주가 전월대비 MoM)"
+        
+        # 주가 상단 배치 (시가총액은 제거함)
+        st.metric(label="현재 주가", value=price_formatted, delta=delta_formatted)
+        
+        # 2. 1년치 주가추세 차트 (요청사항 1 반영 + 크기 고정으로 스크롤 버그 원천 해결)
+        st.markdown("### 📈 최근 1년 주가 추세")
+        if not hist.empty:
+            fig_trend = go.Figure(go.Scatter(
+                x=hist.index, y=hist['Close'],
+                mode='lines', line=dict(color='#0070C0', width=2),
+                name='종가'
             ))
-            
-            fig_monthly.update_layout(
+            fig_trend.update_layout(
                 plot_bgcolor='white',
-                # 픽셀 너비를 800 이상으로 고정하여 스크롤 시 무너지지 않게 방어합니다.
-                width=850, 
-                height=350,
-                margin=dict(l=40, r=40, t=30, b=30),
-                yaxis=dict(title="증감률 (%)", showgrid=True, gridcolor='lightgray'),
-                xaxis=dict(type='category')
+                width=850, height=350, # 👈 가로크기를 픽셀로 고정하여 스크롤 쪼그라듦 완전 방어!
+                margin=dict(l=50, r=40, t=20, b=30),
+                xaxis=dict(showgrid=True, gridcolor='lightgray'),
+                yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat="," if currency != "USD" else ",.2f")
             )
-            # 고정형 차트 출력 (use_container_width를 False로 하여 스크롤 버그 원천 차단)
-            st.plotly_chart(fig_monthly, use_container_width=False)
+            st.plotly_chart(fig_trend, use_container_width=False) # 👈 False 설정 필수
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
-        
-        # 3. 최신 뉴스 리스트 (한글)
+            
+        # 3. 최근 4개분기 매출액 & 영업이익 차트 (요청사항 4 반영)
+        if not financials_df.empty:
+            st.markdown("### 📊 최근 4개 분기 실적 실적")
+            
+            quarters = [str(col).split(' ')[0] for col in financials_df.columns]
+            
+            # 국가별 화폐 단위에 따른 스케일링 설정
+            if currency == "KRW":
+                scale, unit = 1e8, "(단위: 억 원)"
+            elif currency == "JPY":
+                scale, unit = 1e8, "(단위: 억 엔)"
+            else:
+                scale, unit = 1e6, "(단위: 백만 달러 / $M)"
+                
+            st.caption(unit)
+            
+            fig_fin = go.Figure()
+            
+            if '매출액' in financials_df.index:
+                fig_fin.add_trace(go.Bar(
+                    x=quarters, y=financials_df.loc['매출액'] / scale,
+                    name='매출액', marker_color='#1f497d',
+                    text=(financials_df.loc['매출액'] / scale).apply(lambda x: f"{x:,.1f}"),
+                    textposition='outside'
+                ))
+            if '영업이익' in financials_df.index:
+                fig_fin.add_trace(go.Bar(
+                    x=quarters, y=financials_df.loc['영업이익'] / scale,
+                    name='영업이익', marker_color='#ed7d31',
+                    text=(financials_df.loc['영업이익'] / scale).apply(lambda x: f"{x:,.1f}"),
+                    textposition='outside'
+                ))
+                
+            fig_fin.update_layout(
+                barmode='group', plot_bgcolor='white',
+                width=850, height=350, # 👈 분기 차트도 스크롤 버그 방지를 위해 고정 크기 지정
+                margin=dict(l=50, r=40, t=30, b=30),
+                xaxis=dict(type='category'),
+                yaxis=dict(showgrid=True, gridcolor='lightgray'),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_fin, use_container_width=False)
+        else:
+            st.info("최근 분기 실적 데이터를 공급하지 않거나 야후 금융 API 과부하로 차트가 일시 제한되었습니다.")
+            
+        # 4. 최신 뉴스 리스트 (한글)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스 (한글 번역)")
         
