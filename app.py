@@ -175,16 +175,15 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 캐싱)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실시간 100% 자동 + 캐싱 + 뉴스 방어)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 [보안/안정성 추가] 주가 데이터를 10분간 메모리에 캐싱하는 함수를 만듭니다.
-    @st.cache_data(ttl=600) # ttl=600은 600초(10분) 동안 야후 서버 재요청을 막아줍니다!
+    # 주가 데이터를 10분간 메모리에 캐싱하는 함수
+    @st.cache_data(ttl=600)
     def get_company_data(ticker_symbol):
         ticker = yf.Ticker(ticker_symbol)
-        # 필요한 정보만 딕셔너리로 안전하게 추출
         info = ticker.info
         hist = ticker.history(period="6mo")
         news = ticker.news
@@ -213,7 +212,7 @@ with tab3:
     ticker_symbol = companies[selected_company]
     
     try:
-        # 캐싱된 함수를 호출하여 데이터를 안전하게 가져옵니다.
+        # 캐싱된 함수 호출
         info, hist, news_list = get_company_data(ticker_symbol)
         
         # 1. 상단 미니 카드(Metrics) 배치
@@ -253,14 +252,13 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-        # 3. 최신 뉴스 리스트 연동 (안전망 강화 버전)
+        # 3. 최신 뉴스 리스트 연동 (줄맞춤 완벽 정렬)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
         
         if news_list:
             valid_news_count = 0
             for item in news_list:
-                # 💡 핵심 수정: title과 link가 둘 다 안전하게 존재하는 기사만 골라냅니다!
                 title = item.get('title')
                 link = item.get('link')
                 publisher = item.get('publisher', 'Unknown Source')
@@ -271,7 +269,6 @@ with tab3:
                         st.write(f"[기사 원문 링크]({link})")
                     valid_news_count += 1
                 
-                # 최신 뉴스 5개까지만 노출하고 반복문 종료
                 if valid_news_count >= 5:
                     break
                     
@@ -279,3 +276,6 @@ with tab3:
                 st.info("현재 표시할 수 있는 유효한 최신 뉴스 기사가 없습니다.")
         else:
             st.info("현재 해당 기업과 관련된 최신 뉴스 기사가 없습니다.")
+            
+    except Exception as e:
+        st.error(f"데이터를 가져오는 중 일시적인 오류가 발생했습니다: {e}")
