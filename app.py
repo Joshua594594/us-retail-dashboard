@@ -252,13 +252,16 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-        # 3. 최신 뉴스 리스트 연동 (야후 파이낸스 + 구글 뉴스 RSS 백업 시스템)
+       # 3. 최신 뉴스 리스트 연동 (실시간 한글 번역 시스템 탑재)
         st.markdown("---")
-        st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
+        st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스 (한글 번역)")
+        
+        # 번역기 라이브러리 호출
+        from deep_translator import GoogleTranslator
         
         valid_news_count = 0
         
-        # 야후 뉴스 체크
+        # 야후 뉴스 체크 및 번역
         if news_list:
             for item in news_list:
                 title = item.get('title')
@@ -266,14 +269,21 @@ with tab3:
                 publisher = item.get('publisher', 'Unknown Source')
                 
                 if title and link:
-                    with st.expander(title):
-                        st.write(f"**출처:** {publisher}")
+                    try:
+                        # 💡 영어 제목을 한글로 실시간 번역합니다.
+                        ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
+                        display_title = f"[{publisher}] {ko_title}"
+                    except Exception:
+                        display_title = f"[{publisher}] {title} (번역 실패)"
+                        
+                    with st.expander(display_title):
+                        st.write(f"**원본 제목:** {title}")
                         st.write(f"[기사 원문 링크]({link})")
                     valid_news_count += 1
                 if valid_news_count >= 5:
                     break
 
-        # 야후 뉴스가 없으면 구글 뉴스 RSS로 우회
+        # 야후 뉴스가 없으면 구글 뉴스 RSS로 우회 및 번역
         if valid_news_count == 0:
             try:
                 import xml.etree.ElementTree as ET
@@ -293,8 +303,15 @@ with tab3:
                     g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
                     
                     if g_title and g_link:
-                        with st.expander(g_title):
-                            st.write(f"**출처:** {g_pub}")
+                        try:
+                            # 💡 구글 RSS 뉴스 제목도 한글로 번역합니다.
+                            ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
+                            display_title = f"[{g_pub}] {ko_g_title}"
+                        except Exception:
+                            display_title = f"[{g_pub}] {g_title} (번역 실패)"
+                            
+                        with st.expander(display_title):
+                            st.write(f"**원본 제목:** {g_title}")
                             st.write(f"[기사 원문 링크]({g_link})")
                         valid_news_count += 1
             except Exception as e:
