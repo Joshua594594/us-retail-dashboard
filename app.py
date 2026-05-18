@@ -252,12 +252,14 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
         
-        # 3. 최신 뉴스 리스트 연동 (줄맞춤 완벽 정렬)
+        # 3. 최신 뉴스 리스트 연동 (야후 파이낸스 + 구글 뉴스 RSS 백업 시스템)
         st.markdown("---")
         st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스")
         
+        valid_news_count = 0
+        
+        # 우선 야후 파이낸스 뉴스부터 체크합니다.
         if news_list:
-            valid_news_count = 0
             for item in news_list:
                 title = item.get('title')
                 link = item.get('link')
@@ -268,14 +270,37 @@ with tab3:
                         st.write(f"**출처:** {publisher}")
                         st.write(f"[기사 원문 링크]({link})")
                     valid_news_count += 1
-                
                 if valid_news_count >= 5:
                     break
+
+        # 💡 [핵심 추가] 만약 야후 뉴스가 기사를 하나도 안 준다면? 구글 뉴스 RSS로 우회합니다!
+        if valid_news_count == 0:
+            try:
+                # 구글 뉴스에서 해당 기업 이름으로 검색한 RSS 피드를 읽어옵니다.
+                import xml.etree.ElementTree as ET
+                import urllib.request
+                
+                # 공백 제거 및 인코딩
+                search_term = ticker_symbol.split('.')[0] if '.' in ticker_symbol else selected_company.split(' ')[0]
+                url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_term)}&hl=en-US&gl=US&ceid=US:en"
+                
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                xml_data = urllib.request.urlopen(req).read()
+                
+                root = ET.fromstring(xml_data)
+                for item in root.findall('.//item')[:5]: # 최신 뉴스 5개 추출
+                    g_title = item.find('title').text
+                    g_link = item.find('link').text
+                    g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
                     
-            if valid_news_count == 0:
-                st.info("현재 표시할 수 있는 유효한 최신 뉴스 기사가 없습니다.")
-        else:
-            st.info("현재 해당 기업과 관련된 최신 뉴스 기사가 없습니다.")
-            
-    except Exception as e:
-        st.error(f"데이터를 가져오는 중 일시적인 오류가 발생했습니다: {e}")
+                    if g_title and g_link:
+                        with st.expander(g_title):
+                            st.write(f"**출처:** {g_pub}")
+                            st.write(f"[기사 원문 링크]({g_link})")
+                        valid_news_count += 1
+            except Exception as e:
+                pass # 구글 뉴스마저 실패하면 조용히 넘어감
+
+        # 백업까지 돌았는데도 정말 아무것도 없다면 최종 안내
+        if valid_news_count == 0:
+            st.info("현재 해당 기업과 관련된 최신 뉴스 기사를 불러올 수 없습니다.")
