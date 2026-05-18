@@ -175,12 +175,12 @@ with tab2:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
-# [Tab 3] 글로벌 패션·유통 기업 모니터링 (실적 증감률 + 초정밀 뉴스 필터링)
+# [Tab 3] 글로벌 패션·유통 기업 모니터링 (QoQ 실적 고정 + 국적별 뉴스 타겟 수집)
 # ==========================================
 with tab3:
     st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
     
-    # 💡 10분 캐싱 함수 (뉴스 필터링 로직 추가)
+    # 💡 10분 캐싱 함수 (QoQ 고정 및 국내/해외 뉴스 타겟 수집 시스템)
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company, search_keyword):
         ticker = yf.Ticker(ticker_symbol)
@@ -191,9 +191,8 @@ with tab3:
         except Exception:
             hist = pd.DataFrame()
             
-        # 2. 분기 실적 데이터 (매출/영업이익 증감률)
+        # 2. 분기 실적 데이터 (💡 요청사항: 전분기 대비 QoQ로 100% 고정)
         financials_df = pd.DataFrame()
-        is_yoy = False
         try:
             q_fin = ticker.quarterly_financials
             if q_fin is not None and not q_fin.empty:
@@ -214,32 +213,28 @@ with tab3:
                     raw_fin.index = row_labels
                     raw_fin = raw_fin.reindex(columns=sorted(raw_fin.columns))
                     
-                    growth_df = raw_fin.pct_change(periods=4, axis=1) * 100
+                    # 💡 periods=1 로 설정하여 무조건 직전 분기 대비(QoQ) 증감률을 계산해 4개 분기를 다 채웁니다.
+                    growth_df = raw_fin.pct_change(periods=1, axis=1) * 100
                     financials_df = growth_df.iloc[:, -4:]
-                    is_yoy = True
-                    
-                    if financials_df.isna().all().all() or financials_df.empty:
-                        growth_df = raw_fin.pct_change(periods=1, axis=1) * 100
-                        financials_df = growth_df.iloc[:, -4:]
-                        is_yoy = False
         except Exception:
             pass
             
-        # 3. 기업 기본 정보 가져오기 (통화 정보)
+        # 3. 기업 기본 정보 및 국적 파악
         info_dict = {}
         try:
             info_dict = ticker.info
         except Exception:
             pass
             
-        if ".KS" in ticker_symbol or ".KQ" in ticker_symbol:
+        is_korean = ".KS" in ticker_symbol or ".KQ" in ticker_symbol
+        if is_korean:
             info_dict['currency'] = "KRW"
         elif ".T" in ticker_symbol:
             info_dict['currency'] = "JPY"
         else:
             info_dict['currency'] = "USD"
                 
-        # 4. 뉴스 데이터 가져오기 및 [초정밀 필터링 & 번역]
+        # 4. 뉴스 데이터 가져오기 및 [초정밀 필터링 / 번역]
         from deep_translator import GoogleTranslator
         raw_news = []
         try:
@@ -250,23 +245,26 @@ with tab3:
         translated_news = []
         valid_news_count = 0
         
-        # 필터링용 핵심 키워드 정리
         keyword_lower = search_keyword.lower()
         ticker_core = ticker_symbol.split('.')[0].lower()
         
+        # 야후 뉴스 매칭 시도
         if raw_news:
             for item in raw_news:
                 title = item.get('title', '')
                 link = item.get('link', '')
                 publisher = item.get('publisher', 'Unknown Source')
                 
-                # 💡 [핵심 방어 1] 기사 원본 제목에 회사명이나 종목 코드가 명확히 있을 때만 통과!
                 if title and link:
                     t_lower = title.lower()
                     if keyword_lower in t_lower or ticker_core in t_lower:
                         try:
-                            ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
-                            display_title = f"[{publisher}] {ko_title}"
+                            # 💡 한국 회사 기사면 번역하지 않고 그대로 노출, 외국 기사면 한글 번역
+                            if is_korean:
+                                display_title = f"[{publisher}] {title}"
+                            else:
+                                ko_title = GoogleTranslator(source='auto', target='ko').translate(title)
+                                display_title = f"[{publisher}] {ko_title}"
                         except Exception:
                             display_title = f"[{publisher}] {title}"
                         translated_news.append({"title": display_title, "orig_title": title, "link": link})
@@ -275,44 +273,53 @@ with tab3:
                 if valid_news_count >= 5:
                     break
 
-        # 통과된 뉴스가 0개면 구글 뉴스로 우회
-        if valid_news_count == 0:
+        # 통과된 뉴스가 부족하면 구글 뉴스 RSS 백업 시스템 가동 (★한국 포털 뉴스 크롤링 효과)
+        if valid_news_count < 5:
             try:
                 import xml.etree.ElementTree as ET
                 import urllib.request
                 import urllib.parse
                 
-                # 💡 [핵심 방어 2] 모호한 이름 대신, 정확한 검색어(search_keyword)를 구글에 던짐
-                url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_keyword)}&hl=en-US&gl=US&ceid=US:en"
+                # 💡 [핵심 해결책] 한국 회사는 국내 미디어 전용 망(hl=ko&gl=KR)을 설정해 네이버 등에 연동된 국내 뉴스를 전부 긁어옵니다.
+                if is_korean:
+                    url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_keyword)}&hl=ko&gl=KR&ceid=KR:ko"
+                else:
+                    url = f"https://news.google.com/rss/search?q={urllib.parse.quote(search_keyword)}&hl=en-US&gl=US&ceid=US:en"
+                    
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 xml_data = urllib.request.urlopen(req).read()
                 
                 root = ET.fromstring(xml_data)
                 for item in root.findall('.//item'):
-                    g_title = item.find('title').text
-                    g_link = item.find('link').text
+                    g_title = item.find('title').text if item.find('title') is not None else ''
+                    g_link = item.find('link').text if item.find('link') is not None else ''
                     g_pub = item.find('source').text if item.find('source') is not None else 'Google News'
                     
                     if g_title and g_link:
-                        # 구글 뉴스도 제목 필터링 한 번 더!
                         t_lower = g_title.lower()
                         if keyword_lower in t_lower or ticker_core in t_lower:
                             try:
-                                ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
-                                display_title = f"[{g_pub}] {ko_g_title}"
+                                if is_korean:
+                                    display_title = f"[{g_pub}] {g_title}"
+                                else:
+                                    ko_g_title = GoogleTranslator(source='auto', target='ko').translate(g_title)
+                                    display_title = f"[{g_pub}] {ko_g_title}"
                             except Exception:
                                 display_title = f"[{g_pub}] {g_title}"
-                            translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link})
-                            valid_news_count += 1
+                            
+                            # 중복 링크 방지 체크 후 삽입
+                            if not any(n['link'] == g_link for n in translated_news):
+                                translated_news.append({"title": display_title, "orig_title": g_title, "link": g_link})
+                                valid_news_count += 1
                             
                     if valid_news_count >= 5:
                         break
             except Exception:
                 pass
                 
-        return info_dict, hist, financials_df, is_yoy, translated_news
+        return info_dict, hist, financials_df, translated_news
 
-    # 💡 대상 기업 리스트 강화: (티커, 정확한 뉴스 검색용 키워드) 형태로 매핑
+    # 대상 기업 리스트
     companies = {
         "Walmart (월마트)": ("WMT", "Walmart"), 
         "Target (타겟)": ("TGT", "Target"), 
@@ -333,12 +340,11 @@ with tab3:
     }
     
     selected_company = st.selectbox("분석할 기업을 선택하세요", list(companies.keys()))
-    # 선택된 튜플에서 티커와 검색 키워드를 분리
     ticker_symbol, search_keyword = companies[selected_company]
     
     try:
-        # 무적 캐싱 함수 가동 (search_keyword 추가)
-        info, hist, financials_df, is_yoy, final_news = get_complete_company_data(ticker_symbol, selected_company, search_keyword)
+        # 정보 호출
+        info, hist, financials_df, final_news = get_complete_company_data(ticker_symbol, selected_company, search_keyword)
         
         # 1. 현재 주가 및 화폐 단위 셋팅
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
@@ -390,13 +396,10 @@ with tab3:
         else:
             st.info("주가 차트 데이터를 불러올 수 없습니다.")
             
-        # 3. 최근 4개분기 매출액 & 영업이익 증감률 차트
+        # 3. 최근 4개분기 매출액 & 영업이익 증감률 차트 (QoQ 완벽 고정)
         if not financials_df.empty:
             st.markdown("### 📊 최근 4개 분기 실적 증감률")
-            if is_yoy:
-                st.caption("※ 전년 동분기 대비 (YoY, %)")
-            else:
-                st.caption("※ 전분기 대비 (QoQ, %) *야후 금융 API의 과거 데이터 제공 한계로 인해 전분기 대비로 표기됩니다.*")
+            st.caption("※ 전분기 대비 (QoQ, %)")
                 
             quarters = [str(col).split(' ')[0] for col in financials_df.columns]
             
@@ -429,9 +432,9 @@ with tab3:
         else:
             st.info("최근 분기 실적 데이터를 공급하지 않거나 야후 금융 API 과부하로 차트가 일시 제한되었습니다.")
             
-        # 4. 최신 뉴스 리스트 (한글)
+        # 4. 최신 뉴스 리스트 (국내/해외 맞춤형)
         st.markdown("---")
-        st.markdown(f"### 📰 {selected_company} 관련 최신 글로벌 뉴스 (한글 번역)")
+        st.markdown(f"### 📰 {selected_company} 관련 최신 뉴스")
         
         if final_news:
             for item in final_news:
