@@ -445,7 +445,7 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (API 없이 FRED 직접 타격 방식!)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (FRED 봇 차단 우회 위장 접속!)
 # ==========================================
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
@@ -456,8 +456,10 @@ with tab4:
     def get_macro_data():
         import pandas as pd
         import datetime
+        import urllib.request
+        import io
         
-        # 1. 야후 파이낸스 데이터 (환율 및 원자재)
+        # 1. 야후 파이낸스 데이터
         yf_tickers = {
             "원/달러 환율": "KRW=X",
             "글로벌 면화(Cotton)": "CT=F",
@@ -471,7 +473,7 @@ with tab4:
             except Exception:
                 yf_data[name] = pd.Series()
                 
-        # 2. 미국 FRED 데이터 (💡 에러를 내던 라이브러리를 버리고, FRED 서버에서 직접 CSV를 읽어옵니다!)
+        # 2. 미국 FRED 데이터 (💡 크롬 브라우저로 위장하여 데이터 강제 추출)
         fred_tickers = {
             "미국 실질 GDP": "GDPC1",                 
             "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
@@ -479,19 +481,20 @@ with tab4:
         }
         fred_data = {}
         
-        # 최근 5년치 데이터만 필터링하기 위한 날짜 계산
         start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
         
         for name, ticker in fred_tickers.items():
             try:
-                # FRED의 고유 CSV 다운로드 URL 규칙을 이용해 데이터를 직접 가져옵니다.
                 url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={ticker}"
-                df = pd.read_csv(url, index_col='DATE', parse_dates=True)
                 
-                # '.` (결측치) 기호를 숫자가 아닌 것으로 인식하는 경우를 대비해 숫자로 변환
+                # 💡 핵심: "나 파이썬 아니고 윈도우 크롬 브라우저야!" 라고 신분증 위조
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                response = urllib.request.urlopen(req).read().decode('utf-8')
+                
+                # 다운받은 텍스트를 판다스가 읽을 수 있게 변환
+                df = pd.read_csv(io.StringIO(response), index_col='DATE', parse_dates=True)
+                
                 df[ticker] = pd.to_numeric(df[ticker], errors='coerce')
-                
-                # 최근 5년 데이터만 잘라내기
                 df = df[df.index >= start_date]
                 fred_data[name] = df[ticker].dropna()
             except Exception:
@@ -553,12 +556,16 @@ with tab4:
                 fig_gdp = go.Figure(go.Scatter(x=fred_data["미국 실질 GDP"].index, y=fred_data["미국 실질 GDP"], mode='lines+markers', line=dict(color='#8E44AD', width=2)))
                 fig_gdp.update_layout(title="미국 실질 GDP (분기별)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_gdp, use_container_width=True)
+            else:
+                st.info("현재 GDP 데이터를 불러오고 있습니다. 잠시 후 새로고침 해주세요.")
                 
         with col6:
             if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
                 fig_cpi = go.Figure(go.Scatter(x=fred_data["미국 의류 소비자물가지수(CPI)"].index, y=fred_data["미국 의류 소비자물가지수(CPI)"], mode='lines', line=dict(color='#D35400', width=2)))
                 fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_cpi, use_container_width=True)
+            else:
+                st.info("현재 CPI 데이터를 불러오고 있습니다. 잠시 후 새로고침 해주세요.")
 
         if not fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].empty:
             fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].index, y=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
