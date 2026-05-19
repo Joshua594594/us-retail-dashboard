@@ -445,7 +445,7 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (타임아웃 무한 로딩 방지 적용)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (강력한 Requests 브라우저 위장 돌파!)
 # ==========================================
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
@@ -455,10 +455,10 @@ with tab4:
     def get_macro_data():
         import pandas as pd
         import datetime
-        import urllib.request
+        import requests
         import io
         
-        # 1. 야후 파이낸스 데이터
+        # 1. 야후 파이낸스 데이터 (환율/원자재)
         yf_tickers = {
             "원/달러 환율": "KRW=X",
             "글로벌 면화(Cotton)": "CT=F",
@@ -472,7 +472,7 @@ with tab4:
             except Exception:
                 yf_data[name] = pd.Series()
                 
-        # 2. 미국 FRED 데이터 (💡 타임아웃 5초 제한 적용)
+        # 2. 미국 FRED 데이터 (💡 완벽한 브라우저 위장 세트 장착)
         fred_tickers = {
             "미국 실질 GDP": "GDPC1",                 
             "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
@@ -481,19 +481,30 @@ with tab4:
         fred_data = {}
         start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
         
+        # 💡 [핵심] 깐깐한 서버를 속이기 위한 완벽한 실제 브라우저 헤더
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/csv,application/csv,text/plain,*/*',
+            'Accept-Language': 'en-US,en;q=0.9,ko;q=0.8',
+            'Referer': 'https://fred.stlouisfed.org/',
+            'Connection': 'keep-alive'
+        }
+        
         for name, ticker in fred_tickers.items():
             try:
                 url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={ticker}"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                 
-                # 💡 [핵심 해결] timeout=5 를 추가! 5초 안에 응답 안 하면 미련 없이 끊고 다음으로 넘어갑니다.
-                response = urllib.request.urlopen(req, timeout=5).read().decode('utf-8')
+                # 강력한 requests 라이브러리로 위장 헤더를 씌워 10초 대기(timeout)로 찌릅니다.
+                response = requests.get(url, headers=headers, timeout=10)
                 
-                df = pd.read_csv(io.StringIO(response), index_col='DATE', parse_dates=True)
+                # 만약 서버가 403(거절)이나 404(없음) 에러를 보내면 즉시 포기하고 넘어감
+                response.raise_for_status() 
+                
+                df = pd.read_csv(io.StringIO(response.text), index_col='DATE', parse_dates=True)
                 df[ticker] = pd.to_numeric(df[ticker], errors='coerce')
                 df = df[df.index >= start_date]
                 fred_data[name] = df[ticker].dropna()
-            except Exception: # 5초가 지나면 에러 처리되어 빈 데이터로 안전하게 넘김
+            except Exception as e:
                 fred_data[name] = pd.Series()
                 
         return yf_data, fred_data
@@ -549,7 +560,7 @@ with tab4:
         
         # --- 3층: 거시경제 ---
         st.markdown("### 🦅 미국 거시경제 및 소비 지표 (최근 5년 트렌드)")
-        st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED) API")
+        st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED)")
         
         col5, col6 = st.columns(2)
         
@@ -559,7 +570,7 @@ with tab4:
                 fig_gdp.update_layout(title="미국 실질 GDP (분기별)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_gdp, use_container_width=True)
             else:
-                st.info("GDP 데이터 연결이 지연되고 있습니다.")
+                st.info("FRED 서버 보안(Cloudflare) 정책으로 인해 미국 실질 GDP 데이터를 가져올 수 없습니다.")
                 
         with col6:
             if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
@@ -567,14 +578,14 @@ with tab4:
                 fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_cpi, use_container_width=True)
             else:
-                st.info("CPI 데이터 연결이 지연되고 있습니다.")
+                st.info("FRED 서버 보안(Cloudflare) 정책으로 인해 미국 의류 CPI 데이터를 가져올 수 없습니다.")
 
         if not fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].empty:
             fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].index, y=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
             fig_inv.update_layout(title="미국 소매업 재고율 (높을수록 창고에 재고가 많음을 의미)", width=850, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
             st.plotly_chart(fig_inv, use_container_width=False)
         else:
-            st.info("소매업 재고율 데이터 연결이 지연되고 있습니다.")
+            st.info("FRED 서버 보안(Cloudflare) 정책으로 인해 미국 소매업 재고율 데이터를 가져올 수 없습니다.")
 
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
