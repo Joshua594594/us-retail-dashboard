@@ -6,3 +6,4 @@ openpyxl
 yfinance
 deep-translator
 pandas-datareader
+setuptools
