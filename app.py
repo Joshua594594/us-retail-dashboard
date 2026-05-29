@@ -445,7 +445,7 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (공식 FRED API 적용 - 절대 안 막힘!)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (API 정문 접속 + 에러 원인 추적기 탑재)
 # ==========================================
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
@@ -472,7 +472,7 @@ with tab4:
             except Exception:
                 yf_data[name] = pd.Series()
                 
-        # 2. 미국 FRED 데이터 (💡 정식 API Key를 사용하여 100% 안정적으로 가져옵니다!)
+        # 2. 미국 FRED 데이터 
         FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
         
         fred_tickers = {
@@ -481,35 +481,41 @@ with tab4:
             "미국 소매업 재고율 (Inventory-to-Sales)": "RETAILIRSA" 
         }
         fred_data = {}
+        fred_errors = {} # 💡 FRED가 던지는 진짜 에러 메시지를 담을 바구니
+        
         start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'} # API에도 안전하게 위장막 씌우기
         
         for name, ticker in fred_tickers.items():
             try:
-                # FRED의 공식 API 정문을 통해 데이터를 JSON 형태로 요청합니다.
                 url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                # 💡 정상(200)이 아니면, 서버가 보낸 에러 텍스트를 강제로 끄집어냅니다.
+                if response.status_code != 200:
+                    raise Exception(f"HTTP {response.status_code}: {response.text}")
+                    
                 response.raise_for_status()
                 
-                # JSON 데이터 파싱
                 data = response.json()['observations']
                 df = pd.DataFrame(data)
                 
-                # 날짜와 수치 데이터로 변환 (결측치 '.' 는 안전하게 무시)
                 df['date'] = pd.to_datetime(df['date'])
                 df['value'] = pd.to_numeric(df['value'], errors='coerce')
                 
-                # 인덱스 설정 및 최근 5년치 필터링
                 df = df.set_index('date')
                 df = df[df.index >= start_date]
                 fred_data[name] = df['value'].dropna()
                 
             except Exception as e:
                 fred_data[name] = pd.Series()
+                fred_errors[name] = str(e) # 에러 메시지 저장
                 
-        return yf_data, fred_data
+        return yf_data, fred_data, fred_errors
 
     try:
-        yf_data, fred_data = get_macro_data()
+        # 함수 반환값이 3개로 늘어났으므로 fred_errors도 받아줍니다.
+        yf_data, fred_data, fred_errors = get_macro_data()
         
         # --- 1층: 환율 ---
         st.markdown("### 💱 원/달러 환율 동향 (최근 1년)")
@@ -569,7 +575,7 @@ with tab4:
                 fig_gdp.update_layout(title="미국 실질 GDP (분기별)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_gdp, use_container_width=True)
             else:
-                st.info("GDP 데이터를 불러오지 못했습니다. API 키를 다시 확인해 주세요.")
+                st.error(f"GDP 데이터 오류: {fred_errors.get('미국 실질 GDP', '원인 불명')}")
                 
         with col6:
             if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
@@ -577,14 +583,14 @@ with tab4:
                 fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", width=400, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_cpi, use_container_width=True)
             else:
-                st.info("CPI 데이터를 불러오지 못했습니다. API 키를 다시 확인해 주세요.")
+                st.error(f"CPI 데이터 오류: {fred_errors.get('미국 의류 소비자물가지수(CPI)', '원인 불명')}")
 
         if not fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].empty:
             fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"].index, y=fred_data["미국 소매업 재고율 (Inventory-to-Sales)"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
             fig_inv.update_layout(title="미국 소매업 재고율 (높을수록 창고에 재고가 많음을 의미)", width=850, height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
             st.plotly_chart(fig_inv, use_container_width=False)
         else:
-            st.info("소매업 재고율 데이터를 불러오지 못했습니다. API 키를 다시 확인해 주세요.")
+            st.error(f"재고율 데이터 오류: {fred_errors.get('미국 소매업 재고율 (Inventory-to-Sales)', '원인 불명')}")
 
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
