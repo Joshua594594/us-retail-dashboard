@@ -445,18 +445,18 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (API 정문 접속 + 에러 원인 추적기 탑재)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (타임아웃 연장 및 3회 재시도 로직 탑재)
 # ==========================================
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
     st.caption("환율, 원자재, 미국 거시경제(GDP, CPI 등) 지표를 실시간으로 가져옵니다.")
     
-    # 💡 1시간 단위 캐싱
     @st.cache_data(ttl=3600)
     def get_macro_data():
         import pandas as pd
         import datetime
         import requests
+        import time  # 💡 재시도 간격(대기 시간)을 위해 추가
         
         # 1. 야후 파이낸스 데이터
         yf_tickers = {
@@ -481,40 +481,49 @@ with tab4:
             "미국 소매업 재고율 (Inventory-to-Sales)": "RETAILIRSA" 
         }
         fred_data = {}
-        fred_errors = {} # 💡 FRED가 던지는 진짜 에러 메시지를 담을 바구니
+        fred_errors = {}
         
         start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'} # API에도 안전하게 위장막 씌우기
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         
         for name, ticker in fred_tickers.items():
-            try:
-                url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-                response = requests.get(url, headers=headers, timeout=10)
-                
-                # 💡 정상(200)이 아니면, 서버가 보낸 에러 텍스트를 강제로 끄집어냅니다.
-                if response.status_code != 200:
-                    raise Exception(f"HTTP {response.status_code}: {response.text}")
+            fred_data[name] = pd.Series() # 기본값 빈 데이터 설정
+            
+            # 💡 [핵심 해결] 서버가 느릴 때를 대비해 최대 3번까지 재시도합니다.
+            for attempt in range(3):
+                try:
+                    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
                     
-                response.raise_for_status()
-                
-                data = response.json()['observations']
-                df = pd.DataFrame(data)
-                
-                df['date'] = pd.to_datetime(df['date'])
-                df['value'] = pd.to_numeric(df['value'], errors='coerce')
-                
-                df = df.set_index('date')
-                df = df[df.index >= start_date]
-                fred_data[name] = df['value'].dropna()
-                
-            except Exception as e:
-                fred_data[name] = pd.Series()
-                fred_errors[name] = str(e) # 에러 메시지 저장
-                
+                    # 💡 인내심(timeout)을 10초에서 30초로 대폭 늘렸습니다.
+                    response = requests.get(url, headers=headers, timeout=30)
+                    
+                    if response.status_code != 200:
+                        raise Exception(f"HTTP {response.status_code}: {response.text}")
+                        
+                    data = response.json()['observations']
+                    df = pd.DataFrame(data)
+                    
+                    df['date'] = pd.to_datetime(df['date'])
+                    df['value'] = pd.to_numeric(df['value'], errors='coerce')
+                    
+                    df = df.set_index('date')
+                    df = df[df.index >= start_date]
+                    fred_data[name] = df['value'].dropna()
+                    
+                    # 성공하면 에러 기록 지우고 반복문 탈출!
+                    if name in fred_errors:
+                        del fred_errors[name]
+                    break 
+                    
+                except Exception as e:
+                    fred_errors[name] = str(e)
+                    if attempt < 2:
+                        time.sleep(2) # 2초 숨 고르고 다시 시도
+                    # 3번 다 실패하면 최종 에러를 남기고 다음 지표로 넘어감
+                    
         return yf_data, fred_data, fred_errors
 
     try:
-        # 함수 반환값이 3개로 늘어났으므로 fred_errors도 받아줍니다.
         yf_data, fred_data, fred_errors = get_macro_data()
         
         # --- 1층: 환율 ---
