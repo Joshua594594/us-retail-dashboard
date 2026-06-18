@@ -13,118 +13,187 @@ st.title("📊 US Market & Trade & Company Dashboard")
 tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
 
 # ==========================================
-# [Tab 1] 미국 소매 판매 현황 (FRED)
+# [Tab 1] 미국 소매 판매 현황 (FRED API 자동화 탑재 🚀)
 # ==========================================
 with tab1:
+    @st.cache_data(ttl=3600)
+    def get_fred_retail_sales():
+        import requests
+        import time
+        # 💡 FRED MRTS(소매판매) 카테고리별 공식 티커 매핑
+        series_map = {
+            "Retail Trade Total": "RSAFS",
+            "Nonstore Retailers": "RSNSR",
+            "Sporting Goods": "RSSGHBKS",
+            "General Merchandise": "RSGMS",
+            "Furniture": "RSFHFS",
+            "Electronics": "RSECAFS",
+            "Clothing and Clothing Access. Stores": "RSCCAS", # 의류 강조를 위해 이름 맞춤
+            "Motor Vehicle": "RSMVPD",
+            "Building": "RSBMGESD",
+            "Food and Beverage": "RSDBS",
+            "Health": "RSHPCS",
+            "Gasoline": "RSGASS",
+            "Miscellaneous": "RSMSR"
+        }
+        
+        FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        all_data = []
+        
+        for cat, ticker in series_map.items():
+            for attempt in range(3):
+                try:
+                    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
+                    response = requests.get(url, headers=headers, timeout=30)
+                    if response.status_code == 200:
+                        obs = response.json()['observations']
+                        temp_df = pd.DataFrame(obs)
+                        temp_df['Date'] = pd.to_datetime(temp_df['date'])
+                        temp_df['Sales'] = pd.to_numeric(temp_df['value'], errors='coerce')
+                        temp_df['Category'] = cat
+                        temp_df = temp_df[['Date', 'Category', 'Sales']].dropna()
+                        all_data.append(temp_df)
+                        break # 성공시 루프 탈출
+                    else:
+                        time.sleep(2)
+                except Exception:
+                    if attempt < 2:
+                        time.sleep(2)
+                        
+        if all_data:
+            return pd.concat(all_data, ignore_index=True)
+        return pd.DataFrame()
+
     try:
-        df = pd.read_csv('retail_output.csv')
-        df['Date'] = pd.to_datetime(df['Date'])
+        # 💡 기존 CSV 대신 FRED API에서 직접 데이터를 조립해 가져옵니다!
+        df = get_fred_retail_sales()
         
-        latest_date = df['Date'].max()
-        current_year = latest_date.year
-        prev_year = current_year - 1
-        max_month = latest_date.month
+        if df.empty:
+            st.error("FRED 서버에서 소매 판매 데이터를 가져오지 못했습니다.")
+        else:
+            latest_date = df['Date'].max()
+            current_year = latest_date.year
+            prev_year = current_year - 1
+            max_month = latest_date.month
 
-        st.subheader(f"📈 미국 소매 카테고리 별 성장률 (1-{max_month}월) {prev_year} vs {current_year} (%)")
-        
-        df_curr = df[(df['Date'].dt.year == current_year) & (df['Date'].dt.month <= max_month)]
-        sum_curr = df_curr.groupby('Category')['Sales'].sum()
-        
-        df_prev = df[(df['Date'].dt.year == prev_year) & (df['Date'].dt.month <= max_month)]
-        sum_prev = df_prev.groupby('Category')['Sales'].sum()
-        
-        ytd_growth = ((sum_curr / sum_prev) - 1) * 100
-        ytd_growth = ytd_growth.dropna().reset_index()
-        ytd_growth.columns = ['Category', 'Growth']
-        
-        custom_order_keywords = [
-            "Retail Trade Total", "Nonstore Retailers", "Sporting Goods", 
-            "General Merchandise", "Furniture", "Electronics", "Clothing", 
-            "Motor Vehicle", "Building", "Food and Beverage", "Health", 
-            "Gasoline", "Miscellaneous", "Offline"
-        ]
-        
-        ordered_categories = []
-        for keyword in custom_order_keywords:
-            for cat in ytd_growth['Category'].unique():
-                if keyword.lower() in cat.lower() and cat not in ordered_categories:
-                    ordered_categories.append(cat)
-        
-        for cat in ytd_growth['Category'].unique():
-            if cat not in ordered_categories:
-                ordered_categories.append(cat)
-
-        ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=ordered_categories, ordered=True)
-        ytd_growth = ytd_growth.sort_values('Category', ascending=False)
-        
-        colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
-        
-        fig = go.Figure(go.Bar(
-            x=ytd_growth['Growth'],
-            y=ytd_growth['Category'],
-            orientation='h',
-            text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%"),
-            textposition='outside',
-            marker_color=colors,
-            marker_line_width=0 
-        ))
-
-        # 긴 레드 박스 (라벨 끝까지 확장 버전)
-        target_cat = "Clothing and Clothing Access. Stores"
-        cat_list = ytd_growth['Category'].tolist()
-        
-        if any(target_cat in c for c in cat_list):
-            target_idx = [i for i, c in enumerate(cat_list) if target_cat in c][0]
+            st.subheader(f"📈 미국 소매 카테고리 별 성장률 (1-{max_month}월) {prev_year} vs {current_year} (%)")
+            st.caption("※ 데이터 출처: FRED (실시간 API 연동)")
             
-            fig.add_shape(
-                type="rect", xref="paper", x0=-0.25, x1=1.05, yref="y",
-                y0=target_idx - 0.4, y1=target_idx + 0.4,
-                line=dict(color="Red", width=2),
-                fillcolor="rgba(255, 0, 0, 0.05)", layer="below"
+            df_curr = df[(df['Date'].dt.year == current_year) & (df['Date'].dt.month <= max_month)]
+            sum_curr = df_curr.groupby('Category')['Sales'].sum()
+            
+            df_prev = df[(df['Date'].dt.year == prev_year) & (df['Date'].dt.month <= max_month)]
+            sum_prev = df_prev.groupby('Category')['Sales'].sum()
+            
+            ytd_growth = ((sum_curr / sum_prev) - 1) * 100
+            ytd_growth = ytd_growth.dropna().reset_index()
+            ytd_growth.columns = ['Category', 'Growth']
+            
+            custom_order_keywords = [
+                "Retail Trade Total", "Nonstore Retailers", "Sporting Goods", 
+                "General Merchandise", "Furniture", "Electronics", "Clothing", 
+                "Motor Vehicle", "Building", "Food and Beverage", "Health", 
+                "Gasoline", "Miscellaneous"
+            ]
+            
+            ordered_categories = []
+            for keyword in custom_order_keywords:
+                for cat in ytd_growth['Category'].unique():
+                    if keyword.lower() in cat.lower() and cat not in ordered_categories:
+                        ordered_categories.append(cat)
+            
+            for cat in ytd_growth['Category'].unique():
+                if cat not in ordered_categories:
+                    ordered_categories.append(cat)
+
+            ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=ordered_categories, ordered=True)
+            ytd_growth = ytd_growth.sort_values('Category', ascending=False)
+            
+            colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
+            
+            fig = go.Figure(go.Bar(
+                x=ytd_growth['Growth'],
+                y=ytd_growth['Category'],
+                orientation='h',
+                text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%"),
+                textposition='outside',
+                marker_color=colors,
+                marker_line_width=0 
+            ))
+
+            target_cat = "Clothing and Clothing Access. Stores"
+            cat_list = ytd_growth['Category'].tolist()
+            
+            if any(target_cat in c for c in cat_list):
+                target_idx = [i for i, c in enumerate(cat_list) if target_cat in c][0]
+                
+                fig.add_shape(
+                    type="rect", xref="paper", x0=-0.25, x1=1.05, yref="y",
+                    y0=target_idx - 0.4, y1=target_idx + 0.4,
+                    line=dict(color="Red", width=2),
+                    fillcolor="rgba(255, 0, 0, 0.05)", layer="below"
+                )
+
+            fig.update_layout(
+                plot_bgcolor='white', height=600, 
+                margin=dict(l=350, r=50, t=30, b=0), 
+                xaxis=dict(showgrid=True, gridcolor='lightgray'),
+                yaxis=dict(
+                    categoryorder='array', categoryarray=ordered_categories[::-1],
+                    automargin=True 
+                )
             )
+            st.plotly_chart(fig, use_container_width=True)
 
-        fig.update_layout(
-            plot_bgcolor='white', height=600, 
-            margin=dict(l=350, r=50, t=30, b=0), # l(왼쪽 여백)을 350으로 넉넉히 설정
-            xaxis=dict(showgrid=True, gridcolor='lightgray'),
-            yaxis=dict(
-                categoryorder='array', categoryarray=ordered_categories[::-1],
-                automargin=True 
-            )
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            st.markdown("---")
+            st.subheader("📋 미국 소매 카테고리 별 전년 동월대비 증감률(%)")
+            
+            df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
+            yoy_df = df_pivot.pct_change(periods=12) * 100
+            table_df = yoy_df.tail(12).T
+            
+            valid_table_order = [c for c in ordered_categories if c in table_df.index]
+            table_df = table_df.reindex(valid_table_order)
+            
+            formatted_cols = [f"'{str(d.year)[-2:]} / {d.month}" for d in table_df.columns]
+            table_df.columns = formatted_cols
+            
+            def highlight_clothing(row):
+                if 'Clothing' in str(row.name):
+                    return ['background-color: #ffe6e6; border-top: 2px solid red; border-bottom: 2px solid red'] * len(row)
+                return [''] * len(row)
 
-        st.markdown("---")
-        st.subheader("📋 미국 소매 카테고리 별 전년 동월대비 증감률(%)")
-        
-        df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
-        yoy_df = df_pivot.pct_change(periods=12) * 100
-        table_df = yoy_df.tail(12).T
-        
-        valid_table_order = [c for c in ordered_categories if c in table_df.index]
-        table_df = table_df.reindex(valid_table_order)
-        
-        formatted_cols = [f"'{str(d.year)[-2:]} / {d.month}" for d in table_df.columns]
-        table_df.columns = formatted_cols
-        
-        def highlight_clothing(row):
-            if 'Clothing' in row.name:
-                return ['background-color: #ffe6e6; border-top: 2px solid red; border-bottom: 2px solid red'] * len(row)
-            return [''] * len(row)
-
-        styled_table = table_df.style.apply(highlight_clothing, axis=1).format("{:.1f}%", na_rep="-")
-        st.dataframe(styled_table, use_container_width=True, height=550)
+            styled_table = table_df.style.apply(highlight_clothing, axis=1).format("{:.1f}%", na_rep="-")
+            st.dataframe(styled_table, use_container_width=True, height=550)
 
     except Exception as e:
-        st.error(f"소매 판매 데이터를 불러오는 중 오류가 발생했습니다: {e}")
+        st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 2] 미국 의류 수입 현황 (OTEXA)
+# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 안정성 강화
 # ==========================================
 with tab2:
+    st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
+    st.caption("※ OTEXA 데이터 (웹 수집 방해를 피해 안정적인 CSV 연동 유지)")
+    
+    # 💡 OTEXA는 서버 방화벽이 매우 강력하므로, 기존 CSV 파일을 읽되 에러 처리를 강화했습니다.
+    @st.cache_data(ttl=3600)
+    def load_otexa_data():
+        import pandas as pd
+        import os
+        
+        # 만약 웹상에 고정된 CSV 링크가 있다면 아래 주석을 풀고 링크를 넣으세요!
+        # url_share = "https://example.com/otexa_share.csv" 
+        # return pd.read_csv(url_share), pd.read_csv(url_yoy)
+        
+        if os.path.exists('otexa_share.csv') and os.path.exists('otexa_yoy.csv'):
+            return pd.read_csv('otexa_share.csv'), pd.read_csv('otexa_yoy.csv')
+        else:
+            raise FileNotFoundError("로컬에 otexa_share.csv 또는 otexa_yoy.csv 파일이 없습니다.")
+
     try:
-        df_share = pd.read_csv('otexa_share.csv')
-        st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
+        df_share, df_yoy = load_otexa_data()
         
         fig_share = go.Figure()
         colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
@@ -149,7 +218,6 @@ with tab2:
         st.markdown("---")
         st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
         
-        df_yoy = pd.read_csv('otexa_yoy.csv')
         df_yoy = df_yoy.set_index('Country')
         
         def style_country_bg(row):
