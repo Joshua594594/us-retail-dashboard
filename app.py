@@ -13,30 +13,31 @@ st.title("📊 US Market & Trade & Company Dashboard")
 tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
 
 # ==========================================
-# [Tab 1] 미국 소매 판매 현황 (FRED API + 기존 카테고리 완벽 복구 🚀)
+# [Tab 1] 미국 소매 판매 현황 (FRED API + 14개 풀네임 완벽 복구 🚀)
 # ==========================================
 with tab1:
+    # 💡 함수 이름을 바꿔서 기존 찌꺼기(Cache) 데이터를 강제로 무시하고 새로 불러옵니다!
     @st.cache_data(ttl=3600)
-    def get_fred_retail_sales():
+    def get_fred_retail_sales_v2():
         import requests
         import time
         import pandas as pd
         
-        # 💡 1. 기존 CSV에 있던 카테고리명과 동일하게 매핑
+        # 💡 1. 13개의 카테고리를 공식 '풀네임'으로 매핑 (오프라인 제외 13개)
         series_map = {
-            "Retail Trade Total": "RSAFS",
+            "Total Retail Trade": "RSAFS",
             "Nonstore Retailers": "RSNSR",
-            "Sporting Goods": "RSSGHBKS",
-            "General Merchandise": "RSGMS",
-            "Furniture": "RSFHFS",
-            "Electronics": "RSECAFS",
-            "Clothing and Clothing Access. Stores": "RSCCAS", # 의류 레드박스 타겟팅
-            "Motor Vehicle": "RSMVPD",
-            "Building": "RSBMGESD",
-            "Food and Beverage": "RSFDS",
-            "Health": "RSHPCS",
-            "Gasoline": "RSGASS",
-            "Miscellaneous": "RSMSR"
+            "Motor Vehicle and Parts Dealers": "RSMVPD",
+            "Furniture and Home Furnishings Stores": "RSFHFS",
+            "Electronics and Appliance Stores": "RSECAFS",
+            "Building Material and Garden Equipment and Supplies Dealers": "RSBMGESD",
+            "Food and Beverage Stores": "RSFDS",
+            "Health and Personal Care Stores": "RSHPCS",
+            "Gasoline Stations": "RSGASS",
+            "Clothing and Clothing Accessories Stores": "RSCCAS",
+            "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBKS",
+            "General Merchandise Stores": "RSGMS",
+            "Miscellaneous Store Retailers": "RSMSR"
         }
         
         FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
@@ -56,6 +57,7 @@ with tab1:
                         temp_df['Category'] = cat
                         temp_df = temp_df[['Date', 'Category', 'Sales']].dropna()
                         all_data.append(temp_df)
+                        time.sleep(0.2) # API 과부하 방지 (14개 누락 방지)
                         break 
                     else:
                         time.sleep(2)
@@ -68,17 +70,16 @@ with tab1:
             
         df = pd.concat(all_data, ignore_index=True)
         
-        # 💡 2. [핵심] FRED에 없는 'Offline(오프라인)' 카테고리 직접 계산 (전체 - 온라인)
+        # 💡 2. 오프라인(Offline) 카테고리 직접 계산 (Total - Nonstore) = 총 14개 완성!
         df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
-        if 'Retail Trade Total' in df_pivot.columns and 'Nonstore Retailers' in df_pivot.columns:
-            df_pivot['Offline'] = df_pivot['Retail Trade Total'] - df_pivot['Nonstore Retailers']
+        if 'Total Retail Trade' in df_pivot.columns and 'Nonstore Retailers' in df_pivot.columns:
+            df_pivot['Offline'] = df_pivot['Total Retail Trade'] - df_pivot['Nonstore Retailers']
         
-        # 다시 원래의 깔끔한 형태로 되돌리기
         df_final = df_pivot.reset_index().melt(id_vars='Date', var_name='Category', value_name='Sales').dropna()
         return df_final
 
     try:
-        df = get_fred_retail_sales()
+        df = get_fred_retail_sales_v2()
         
         if df.empty:
             st.error("FRED 서버에서 소매 판매 데이터를 가져오지 못했습니다.")
@@ -100,29 +101,31 @@ with tab1:
             ytd_growth = ytd_growth.dropna().reset_index()
             ytd_growth.columns = ['Category', 'Growth']
             
-            # 💡 기존과 100% 동일한 순서 배열을 위한 키워드
-            custom_order_keywords = [
-                "Retail Trade Total", "Nonstore Retailers", "Sporting Goods", 
-                "General Merchandise", "Furniture", "Electronics", "Clothing", 
-                "Motor Vehicle", "Building", "Food and Beverage", "Health", 
-                "Gasoline", "Miscellaneous", "Offline"
+            # 💡 3. 어떤 상황에서도 14개가 똑같은 순서로 나오도록 강제 박제 (순서 원하시면 여기서 바꾸시면 됩니다)
+            exact_14_order = [
+                "Total Retail Trade",
+                "Offline",
+                "Nonstore Retailers",
+                "Clothing and Clothing Accessories Stores",
+                "General Merchandise Stores",
+                "Food and Beverage Stores",
+                "Health and Personal Care Stores",
+                "Gasoline Stations",
+                "Motor Vehicle and Parts Dealers",
+                "Furniture and Home Furnishings Stores",
+                "Electronics and Appliance Stores",
+                "Building Material and Garden Equipment and Supplies Dealers",
+                "Sporting Goods, Hobby, Musical Instrument, and Book Stores",
+                "Miscellaneous Store Retailers"
             ]
             
-            ordered_categories = []
-            for keyword in custom_order_keywords:
-                for cat in ytd_growth['Category'].unique():
-                    if keyword.lower() in cat.lower() and cat not in ordered_categories:
-                        ordered_categories.append(cat)
-            
-            for cat in ytd_growth['Category'].unique():
-                if cat not in ordered_categories:
-                    ordered_categories.append(cat)
-
-            ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=ordered_categories, ordered=True)
-            ytd_growth = ytd_growth.sort_values('Category', ascending=False)
+            # 없는 카테고리가 섞이는 것을 방지하고, 무조건 위 14개 순서대로 정렬
+            ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=exact_14_order, ordered=True)
+            ytd_growth = ytd_growth.sort_values('Category', ascending=False).dropna()
             
             colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
             
+            import plotly.graph_objects as go
             fig = go.Figure(go.Bar(
                 x=ytd_growth['Growth'],
                 y=ytd_growth['Category'],
@@ -133,13 +136,12 @@ with tab1:
                 marker_line_width=0 
             ))
 
-            # 💡 의류 섹터 레드 박스 하이라이팅
-            target_cat = "Clothing and Clothing Access. Stores"
+            # 💡 의류 섹터 레드 박스 하이라이팅 (풀네임 기준)
+            target_cat = "Clothing and Clothing Accessories Stores"
             cat_list = ytd_growth['Category'].tolist()
             
-            if any(target_cat in c for c in cat_list):
-                target_idx = [i for i, c in enumerate(cat_list) if target_cat in c][0]
-                
+            if target_cat in cat_list:
+                target_idx = cat_list.index(target_cat)
                 fig.add_shape(
                     type="rect", xref="paper", x0=-0.25, x1=1.05, yref="y",
                     y0=target_idx - 0.4, y1=target_idx + 0.4,
@@ -152,7 +154,7 @@ with tab1:
                 margin=dict(l=350, r=50, t=30, b=0), 
                 xaxis=dict(showgrid=True, gridcolor='lightgray'),
                 yaxis=dict(
-                    categoryorder='array', categoryarray=ordered_categories[::-1],
+                    categoryorder='array', categoryarray=exact_14_order[::-1],
                     automargin=True 
                 )
             )
@@ -165,7 +167,8 @@ with tab1:
             yoy_df = df_pivot_table.pct_change(periods=12) * 100
             table_df = yoy_df.tail(12).T
             
-            valid_table_order = [c for c in ordered_categories if c in table_df.index]
+            # 표도 14개 순서 동일하게 강제 정렬
+            valid_table_order = [c for c in exact_14_order if c in table_df.index]
             table_df = table_df.reindex(valid_table_order)
             
             formatted_cols = [f"'{str(d.year)[-2:]} / {d.month}" for d in table_df.columns]
