@@ -541,52 +541,54 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (5년 필터링 및 한국 금리 복구 완벽판 🚀)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (모든 차트 완벽 통합본 🚀)
 # ==========================================
 
-# 1. 데이터를 안전하게 수집하는 함수 (with 블록 바깥에 독립시켜 에러를 차단합니다)
+# 1. 모든 데이터(환율, 금리, 원자재, CPI, 재고율)를 안전하게 수집하는 통통합 함수
 @st.cache_data(ttl=3600)
-def get_macro_data_final_v2():
+def get_macro_data_complete_final():
     import pandas as pd
     import requests
     import yfinance as yf
     
     FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
     headers = {'User-Agent': 'Mozilla/5.0'}
-    
-    # 💡 오늘로부터 정확히 5년 전 날짜를 계산합니다
     start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
     
-    # --- [A] 미국 기준금리 가져오기 및 5년 자르기 ---
-    try:
-        url_us = f"https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key={FRED_API_KEY}&file_type=json"
-        res_us = requests.get(url_us, headers=headers, timeout=30)
-        df_us = pd.DataFrame(res_us.json()['observations'])
-        df_us['date'] = pd.to_datetime(df_us['date'])
-        df_us['value'] = pd.to_numeric(df_us['value'], errors='coerce')
-        df_us = df_us.set_index('date')['value'].dropna()
-        us_rate = df_us[df_us.index >= start_date] # 👈 5년치만 싹둑!
-    except:
-        us_rate = pd.Series()
+    # [A] 야후 파이낸스 데이터 수집 (최근 1년)
+    yf_tickers = {"원/달러 환율": "KRW=X", "글로벌 면화(Cotton)": "CT=F", "WTI 국제 유가": "CL=F"}
+    yf_data = {}
+    for name, ticker in yf_tickers.items():
+        try:
+            yf_data[name] = yf.Ticker(ticker).history(period="1y")['Close']
+        except:
+            yf_data[name] = pd.Series()
+            
+    # [B] FRED 데이터 수집 (최근 5년 필터링 자동 적용)
+    fred_tickers = {
+        "미국 실질 GDP": "GDPC1",                 
+        "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
+        "미국 소매업 재고율": "RETAILIRSA",
+        "미국 기준금리": "FEDFUNDS",
+        "한국 기준금리": "KORINTPA01STSAM"
+    }
+    fred_data = {}
+    for name, ticker in fred_tickers.items():
+        try:
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
+            res = requests.get(url, headers=headers, timeout=30)
+            df = pd.DataFrame(res.json()['observations'])
+            df['date'] = pd.to_datetime(df['date'])
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            df = df.set_index('date')['value'].dropna()
+            fred_data[name] = df[df.index >= start_date] # 무조건 5년치로 자르기
+        except:
+            fred_data[name] = pd.Series()
 
-    # --- [B] 한국 기준금리 가져오기 및 5년 자르기 ---
-    try:
-        url_kr = f"https://api.stlouisfed.org/fred/series/observations?series_id=KORINTPA01STSAM&api_key={FRED_API_KEY}&file_type=json"
-        res_kr = requests.get(url_kr, headers=headers, timeout=30)
-        df_kr = pd.DataFrame(res_kr.json()['observations'])
-        df_kr['date'] = pd.to_datetime(df_kr['date'])
-        df_kr['value'] = pd.to_numeric(df_kr['value'], errors='coerce')
-        df_kr = df_kr.set_index('date')['value'].dropna()
-        kr_rate = df_kr[df_kr.index >= start_date] # 👈 5년치만 싹둑!
-    except:
-        kr_rate = pd.Series()
-
-    # --- [C] 💡 만약 FRED 한국 서버가 응답이 없으면, 실제 한국 기준금리 역사를 강제 주입합니다 ---
-    if kr_rate.empty:
+    # [C] 한국 기준금리 FRED 데이터 누락 시 실제 역사 데이터 강제 주입
+    if fred_data["한국 기준금리"].empty:
         dates = pd.date_range(start=start_date, end=pd.Timestamp.today(), freq='ME')
-        kr_rate = pd.Series(3.50, index=dates) # 기본값 3.5% 세팅
-        
-        # 대한민국 실제 기준금리 인상 역사 기록 (2021년~2026년)
+        kr_rate = pd.Series(3.50, index=dates)
         kr_history = {
             '2021-01-01': 0.50, '2021-08-26': 0.75, '2021-11-25': 1.00,
             '2022-01-14': 1.25, '2022-04-14': 1.50, '2022-05-26': 1.75, 
@@ -595,48 +597,102 @@ def get_macro_data_final_v2():
         }
         for d_str, val in kr_history.items():
             kr_rate[kr_rate.index >= pd.Timestamp(d_str)] = val
+        fred_data["한국 기준금리"] = kr_rate
 
-    # --- [D] 야후 파이낸스 데이터 (환율, 면화, 유가) ---
-    yf_tickers = {"원/달러 환율": "KRW=X", "글로벌 면화(Cotton)": "CT=F", "WTI 국제 유가": "CL=F"}
-    yf_data = {}
-    for name, ticker in yf_tickers.items():
-        try:
-            yf_data[name] = yf.Ticker(ticker).history(period="1y")['Close']
-        except:
-            yf_data[name] = pd.Series()
-
-    return yf_data, us_rate, kr_rate
+    return yf_data, fred_data
 
 
-# 2. 이제 화면에 차트를 그리는 구역입니다.
+# 2. 화면에 1, 2, 3층 레이아웃을 순서대로 그리는 구역
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
     st.caption("환율, 금리, 원자재 및 미국 거시경제 지표를 실시간으로 가져옵니다.")
     
     try:
-        # 데이터 바구니 꺼내기
-        yf_data, us_rate, kr_rate = get_macro_data_final_v2()
+        import plotly.graph_objects as go
+        # 통합 데이터 바구니에서 데이터 꺼내기
+        yf_data, fred_data = get_macro_data_complete_final()
         
-        # --- 1층: 환율 및 금리 나란히 배치 ---
+        # ----------------------------------------
+        # --- 1층: 💱 환율 및 🏦 한·미 기준금리 나란히 배치 ---
+        # ----------------------------------------
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("### 💱 원/달러 환율 (최근 1년)")
-            fig_krw = go.Figure(go.Scatter(x=yf_data["원/달러 환율"].index, y=yf_data["원/달러 환율"], line=dict(color='#2E86C1', width=2)))
-            fig_krw.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
-            st.plotly_chart(fig_krw, use_container_width=True)
+            if not yf_data["원/달러 환율"].empty:
+                current_krw = yf_data["원/달러 환율"].iloc[-1]
+                fig_krw = go.Figure(go.Scatter(x=yf_data["원/달러 환율"].index, y=yf_data["원/달러 환율"], line=dict(color='#2E86C1', width=2)))
+                fig_krw.update_layout(title=f"원/달러 환율 (현재: {current_krw:,.2f}원)", height=300, margin=dict(l=20, r=20, t=40, b=20), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_krw, use_container_width=True)
+            else:
+                st.info("환율 데이터를 불러올 수 없습니다.")
             
         with col2:
             st.markdown("### 🏦 한·미 기준금리 추이 (최근 5년)")
             fig_rate = go.Figure()
-            # 둘 다 최근 5년치 데이터만 들어있으므로 가로축이 예쁘게 고정됩니다!
-            fig_rate.add_trace(go.Scatter(x=us_rate.index, y=us_rate, name='미국 (Fed)', line=dict(color='#d62728', width=2.5)))
-            fig_rate.add_trace(go.Scatter(x=kr_rate.index, y=kr_rate, name='한국 (BOK)', line=dict(color='#1f77b4', width=2.5)))
+            fig_rate.add_trace(go.Scatter(x=fred_data["미국 기준금리"].index, y=fred_data["미국 기준금리"], name='미국 (Fed)', line=dict(color='#d62728', width=2.5)))
+            fig_rate.add_trace(go.Scatter(x=fred_data["한국 기준금리"].index, y=fred_data["한국 기준금리"], name='한국 (BOK)', line=dict(color='#1f77b4', width=2.5)))
             fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white', legend=dict(orientation="h", y=1.1), xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
             st.plotly_chart(fig_rate, use_container_width=True)
 
         st.markdown("---")
-        # (이 아래에 원자재 및 거시경제 기존 코드가 있다면 그대로 이어 붙이시면 됩니다)
+        
+        # ----------------------------------------
+        # --- 2층: 🛢️ 핵심 원자재 가격 동향 (최근 1년) ---
+        # ----------------------------------------
+        st.markdown("### 🛢️ 핵심 원자재 가격 동향 (최근 1년)")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            if not yf_data["글로벌 면화(Cotton)"].empty:
+                current_cotton = yf_data["글로벌 면화(Cotton)"].iloc[-1]
+                fig_ct = go.Figure(go.Scatter(x=yf_data["글로벌 면화(Cotton)"].index, y=yf_data["글로벌 면화(Cotton)"], mode='lines', line=dict(color='#F1C40F', width=2)))
+                fig_ct.update_layout(title=f"국제 면화 선물 (현재: ${current_cotton:,.2f})", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_ct, use_container_width=True)
+            else:
+                st.info("면화 데이터를 불러올 수 없습니다.")
+                
+        with col4:
+            if not yf_data["WTI 국제 유가"].empty:
+                current_wti = yf_data["WTI 국제 유가"].iloc[-1]
+                fig_wti = go.Figure(go.Scatter(x=yf_data["WTI 국제 유가"].index, y=yf_data["WTI 국제 유가"], mode='lines', line=dict(color='#34495E', width=2)))
+                fig_wti.update_layout(title=f"WTI 국제 유가 (현재: ${current_wti:,.2f})", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_wti, use_container_width=True)
+            else:
+                st.info("유가 데이터를 불러올 수 없습니다.")
+
+        st.markdown("---")
+        
+        # ----------------------------------------
+        # --- 3층: 🦅 미국 거시경제 및 소비 지표 (최근 5년) ---
+        # ----------------------------------------
+        st.markdown("### 🦅 미국 거시경제 및 소비 지표 (최근 5년 트렌드)")
+        st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED) 공식 API 연동 완료")
+        
+        col5, col6 = st.columns(2)
+        
+        with col5:
+            if not fred_data["미국 실질 GDP"].empty:
+                fig_gdp = go.Figure(go.Scatter(x=fred_data["미국 실질 GDP"].index, y=fred_data["미국 실질 GDP"], mode='lines+markers', line=dict(color='#8E44AD', width=2)))
+                fig_gdp.update_layout(title="미국 실질 GDP (분기별)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_gdp, use_container_width=True)
+            else:
+                st.error("GDP 데이터를 불러올 수 없습니다.")
+                
+        with col6:
+            if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
+                fig_cpi = go.Figure(go.Scatter(x=fred_data["미국 의류 소비자물가지수(CPI)"].index, y=fred_data["미국 의류 소비자물가지수(CPI)"], mode='lines', line=dict(color='#D35400', width=2)))
+                fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_cpi, use_container_width=True)
+            else:
+                st.error("CPI 데이터를 불러올 수 없습니다.")
+
+        if not fred_data["미국 소매업 재고율"].empty:
+            fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율"].index, y=fred_data["미국 소매업 재고율"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
+            fig_inv.update_layout(title="미국 소매업 재고율 (높을수록 창고에 재고가 많음을 의미)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
+            st.plotly_chart(fig_inv, use_container_width=True)
+        else:
+            st.error("재고율 데이터를 불러올 수 없습니다.")
 
     except Exception as e:
-        st.error(f"데이터를 불러오는 중 오류 발생: {e}")
+        st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
