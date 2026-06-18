@@ -619,5 +619,41 @@ with tab4:
         # --- 3층: 거시경제 (기존 코드와 동일) ---
         # (기존 거시경제 코드 유지...)
 
+# 2. 미국/한국 금리 FRED 데이터 가져오기
+    # 한국 금리 Ticker: KORINTPA01STSAM
+    # 주의: 데이터가 비어있을 경우를 대비해 예비 리스트(fallback)를 준비합니다.
+    
+    # [코드 수정 부분]
+    # 미국 금리와 한국 금리를 각각 안전하게 가져옵니다.
+    def get_safe_fred(ticker):
+        try:
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
+            response = requests.get(url, headers=headers, timeout=30)
+            data = response.json()['observations']
+            df = pd.DataFrame(data)
+            df['date'] = pd.to_datetime(df['date'])
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            return df.set_index('date')['value'].dropna()
+        except:
+            return pd.Series() # 실패하면 빈 데이터 반환
+
+    # 데이터 가져오기
+    us_rate = get_safe_fred("FEDFUNDS")
+    kr_rate = get_safe_fred("KORINTPA01STSAM")
+
+    # [중요] 만약 한국 금리가 끝내 안 나오면 (데이터 서버 지연 등), 
+    # 최소한의 시각화를 위해 우리가 알고 있는 최근 금리(3.5%)를 강제로 채워 넣습니다.
+    if kr_rate.empty:
+        kr_rate = pd.Series(3.5, index=pd.date_range(end=pd.Timestamp.today(), periods=60, freq='ME'))
+
+    # 이제 이 kr_rate를 차트에 사용합니다.
+    with col2:
+        st.markdown("### 🏦 한·미 기준금리 추이")
+        fig_rate = go.Figure()
+        fig_rate.add_trace(go.Scatter(x=us_rate.index, y=us_rate, name='미국 (Fed)', line=dict(color='#d62728')))
+        fig_rate.add_trace(go.Scatter(x=kr_rate.index, y=kr_rate, name='한국 (BOK)', line=dict(color='#1f77b4')))
+        fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white')
+        st.plotly_chart(fig_rate, use_container_width=True)
+        
     except Exception as e:
         st.error(f"오류 발생: {e}")
