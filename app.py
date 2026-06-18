@@ -586,7 +586,7 @@ with tab4:
             except: fred_data[name] = pd.Series()
         
         # 한국 기준금리 (예시용: 최근 금리 수준 반영)
-        df_kr = pd.Series([3.50]*12, index=pd.date_range(end=pd.Timestamp.today(), periods=12, freq='M'))
+        df_kr = pd.Series([3.50]*12, index=pd.date_range(end=pd.Timestamp.today(), periods=12, freq='ME'))
         
         return yf_data, fred_data, df_kr
 
