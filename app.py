@@ -540,11 +540,19 @@ with tab3:
     except Exception as e:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
+그래프의 첫 값(시작점)과 마지막 값(최신점)을 차트 선 위에 점과 글씨로 똑똑하게 표시하고, 제목 바로 아래에 시작값, 최신값, 그리고 증감률(%)을 직관적으로 볼 수 있도록 대폭 업그레이드했습니다!
+
+*(참고로 기준금리는 변동 폭을 퍼센트(%)가 아니라 더 정확한 단위인 %p(퍼센트포인트)*로 계산하여 표기했습니다.)
+
+이번에도 헷갈리지 않으시게 1층부터 3층까지 모든 차트가 포함된 [Tab 4] 전체 통합 코드를 드립니다. 기존의 Tab 4 영역을 이 코드로 통째로 새로 덮어쓰기 해주세요!
+
+🛠️ 첫/끝값 및 증감률이 추가된 [Tab 4] 최종 완성본 코드
+Python
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (모든 차트 완벽 통합본 🚀)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (증감률 및 첫/끝값 표기 완벽판 🚀)
 # ==========================================
 
-# 1. 모든 데이터(환율, 금리, 원자재, CPI, 재고율)를 안전하게 수집하는 통통합 함수
+# 1. 모든 데이터 수집 함수 (5년 자르기 및 한국 금리 보완 포함)
 @st.cache_data(ttl=3600)
 def get_macro_data_complete_final():
     import pandas as pd
@@ -564,7 +572,7 @@ def get_macro_data_complete_final():
         except:
             yf_data[name] = pd.Series()
             
-    # [B] FRED 데이터 수집 (최근 5년 필터링 자동 적용)
+    # [B] FRED 데이터 수집
     fred_tickers = {
         "미국 실질 GDP": "GDPC1",                 
         "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
@@ -581,11 +589,11 @@ def get_macro_data_complete_final():
             df['date'] = pd.to_datetime(df['date'])
             df['value'] = pd.to_numeric(df['value'], errors='coerce')
             df = df.set_index('date')['value'].dropna()
-            fred_data[name] = df[df.index >= start_date] # 무조건 5년치로 자르기
+            fred_data[name] = df[df.index >= start_date]
         except:
             fred_data[name] = pd.Series()
 
-    # [C] 한국 기준금리 FRED 데이터 누락 시 실제 역사 데이터 강제 주입
+    # [C] 한국 기준금리 비어있을 때 보완
     if fred_data["한국 기준금리"].empty:
         dates = pd.date_range(start=start_date, end=pd.Timestamp.today(), freq='ME')
         kr_rate = pd.Series(3.50, index=dates)
@@ -602,61 +610,87 @@ def get_macro_data_complete_final():
     return yf_data, fred_data
 
 
-# 2. 화면에 1, 2, 3층 레이아웃을 순서대로 그리는 구역
+# 2. 화면 출력 구역
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
     st.caption("환율, 금리, 원자재 및 미국 거시경제 지표를 실시간으로 가져옵니다.")
     
     try:
         import plotly.graph_objects as go
-        # 통합 데이터 바구니에서 데이터 꺼내기
         yf_data, fred_data = get_macro_data_complete_final()
         
         # ----------------------------------------
-        # --- 1층: 💱 환율 및 🏦 한·미 기준금리 나란히 배치 ---
+        # --- 1층: 💱 환율 및 🏦 한·미 기준금리 ---
         # ----------------------------------------
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("### 💱 원/달러 환율 (최근 1년)")
             if not yf_data["원/달러 환율"].empty:
-                current_krw = yf_data["원/달러 환율"].iloc[-1]
-                fig_krw = go.Figure(go.Scatter(x=yf_data["원/달러 환율"].index, y=yf_data["원/달러 환율"], line=dict(color='#2E86C1', width=2)))
-                fig_krw.update_layout(title=f"원/달러 환율 (현재: {current_krw:,.2f}원)", height=300, margin=dict(l=20, r=20, t=40, b=20), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                s = yf_data["원/달러 환율"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                # 💡 제목 아래 증감률 표기
+                st.markdown(f"📉 **시작:** {f_val:,.1f}원 → **최신:** {l_val:,.1f}원 (증감률: **{chg:+.1f}%**)")
+                
+                fig_krw = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color='#2E86C1', width=2), name="환율"))
+                # 💡 그래프 선 위에 첫 값, 마지막 값 점으로 박기
+                fig_krw.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.1f}", f"{l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#2E86C1'), showlegend=False))
+                fig_krw.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=20), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_krw, use_container_width=True)
             else:
                 st.info("환율 데이터를 불러올 수 없습니다.")
             
         with col2:
             st.markdown("### 🏦 한·미 기준금리 추이 (최근 5년)")
-            fig_rate = go.Figure()
-            fig_rate.add_trace(go.Scatter(x=fred_data["미국 기준금리"].index, y=fred_data["미국 기준금리"], name='미국 (Fed)', line=dict(color='#d62728', width=2.5)))
-            fig_rate.add_trace(go.Scatter(x=fred_data["한국 기준금리"].index, y=fred_data["한국 기준금리"], name='한국 (BOK)', line=dict(color='#1f77b4', width=2.5)))
-            fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white', legend=dict(orientation="h", y=1.1), xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
-            st.plotly_chart(fig_rate, use_container_width=True)
+            us_s, kr_s = fred_data["미국 기준금리"], fred_data["한국 기준금리"]
+            if not us_s.empty and not kr_s.empty:
+                f_us, l_us = us_s.iloc[0], us_s.iloc[-1]
+                f_kr, l_kr = kr_s.iloc[0], kr_s.iloc[-1]
+                # 💡 제목 아래 금리 변동폭(%p) 표기
+                st.markdown(f"🇺🇸 **미국:** {f_us:.2f}% → {l_us:.2f}% (**{l_us-f_us:+.2f}%p**) | 🇰🇷 **한국:** {f_kr:.2f}% → {l_kr:.2f}% (**{l_kr-f_kr:+.2f}%p**)")
+                
+                fig_rate = go.Figure()
+                fig_rate.add_trace(go.Scatter(x=us_s.index, y=us_s, name='미국 (Fed)', line=dict(color='#d62728', width=2.5)))
+                fig_rate.add_trace(go.Scatter(x=kr_s.index, y=kr_s, name='한국 (BOK)', line=dict(color='#1f77b4', width=2.5)))
+                # 💡 금리 그래프 위에 첫값/끝값 표시
+                fig_rate.add_trace(go.Scatter(x=[us_s.index[0], us_s.index[-1]], y=[f_us, l_us], mode='markers+text', text=[f"{f_us:.1f}%", f"{l_us:.1f}%"], textposition="top center", marker=dict(size=6, color='#d62728'), showlegend=False))
+                fig_rate.add_trace(go.Scatter(x=[kr_s.index[0], kr_s.index[-1]], y=[f_kr, l_kr], mode='markers+text', text=[f"{f_kr:.1f}%", f"{l_kr:.1f}%"], textposition="bottom center", marker=dict(size=6, color='#1f77b4'), showlegend=False))
+                fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=20), plot_bgcolor='white', legend=dict(orientation="h", y=1.1), xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_rate, use_container_width=True)
 
         st.markdown("---")
         
         # ----------------------------------------
-        # --- 2층: 🛢️ 핵심 원자재 가격 동향 (최근 1년) ---
+        # --- 2층: 🛢️ 핵심 원자재 가격 동향 ---
         # ----------------------------------------
         st.markdown("### 🛢️ 핵심 원자재 가격 동향 (최근 1년)")
         col3, col4 = st.columns(2)
         
         with col3:
             if not yf_data["글로벌 면화(Cotton)"].empty:
-                current_cotton = yf_data["글로벌 면화(Cotton)"].iloc[-1]
-                fig_ct = go.Figure(go.Scatter(x=yf_data["글로벌 면화(Cotton)"].index, y=yf_data["글로벌 면화(Cotton)"], mode='lines', line=dict(color='#F1C40F', width=2)))
-                fig_ct.update_layout(title=f"국제 면화 선물 (현재: ${current_cotton:,.2f})", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                s = yf_data["글로벌 면화(Cotton)"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                st.markdown(f"🌱 **시작:** ${f_val:,.1f} → **최신:** ${l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+                
+                fig_ct = go.Figure(go.Scatter(x=s.index, y=s, mode='lines', line=dict(color='#F1C40F', width=2)))
+                fig_ct.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"${f_val:,.1f}", f"${l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#F1C40F'), showlegend=False))
+                fig_ct.update_layout(height=300, margin=dict(l=30, r=30, t=20, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_ct, use_container_width=True)
             else:
                 st.info("면화 데이터를 불러올 수 없습니다.")
                 
         with col4:
             if not yf_data["WTI 국제 유가"].empty:
-                current_wti = yf_data["WTI 국제 유가"].iloc[-1]
-                fig_wti = go.Figure(go.Scatter(x=yf_data["WTI 국제 유가"].index, y=yf_data["WTI 국제 유가"], mode='lines', line=dict(color='#34495E', width=2)))
-                fig_wti.update_layout(title=f"WTI 국제 유가 (현재: ${current_wti:,.2f})", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                s = yf_data["WTI 국제 유가"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                st.markdown(f"🛢️ **시작:** ${f_val:,.1f} → **최신:** ${l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+                
+                fig_wti = go.Figure(go.Scatter(x=s.index, y=s, mode='lines', line=dict(color='#34495E', width=2)))
+                fig_wti.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"${f_val:,.1f}", f"${l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#34495E'), showlegend=False))
+                fig_wti.update_layout(height=300, margin=dict(l=30, r=30, t=20, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_wti, use_container_width=True)
             else:
                 st.info("유가 데이터를 불러올 수 없습니다.")
@@ -664,7 +698,7 @@ with tab4:
         st.markdown("---")
         
         # ----------------------------------------
-        # --- 3층: 🦅 미국 거시경제 및 소비 지표 (최근 5년) ---
+        # --- 3층: 🦅 미국 거시경제 및 소비 지표 ---
         # ----------------------------------------
         st.markdown("### 🦅 미국 거시경제 및 소비 지표 (최근 5년 트렌드)")
         st.caption("※ 데이터 출처: 미국 연방준비은행 (FRED) 공식 API 연동 완료")
@@ -673,23 +707,41 @@ with tab4:
         
         with col5:
             if not fred_data["미국 실질 GDP"].empty:
-                fig_gdp = go.Figure(go.Scatter(x=fred_data["미국 실질 GDP"].index, y=fred_data["미국 실질 GDP"], mode='lines+markers', line=dict(color='#8E44AD', width=2)))
-                fig_gdp.update_layout(title="미국 실질 GDP (분기별)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                s = fred_data["미국 실질 GDP"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                st.markdown(f"🏢 **시작:** {f_val:,.0f} → **최신:** {l_val:,.0f} (증감률: **{chg:+.1f}%**)")
+                
+                fig_gdp = go.Figure(go.Scatter(x=s.index, y=s, mode='lines+markers', line=dict(color='#8E44AD', width=2)))
+                fig_gdp.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.0f}", f"{l_val:,.0f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#8E44AD'), showlegend=False))
+                fig_gdp.update_layout(height=300, margin=dict(l=30, r=30, t=20, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_gdp, use_container_width=True)
             else:
                 st.error("GDP 데이터를 불러올 수 없습니다.")
                 
         with col6:
             if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
-                fig_cpi = go.Figure(go.Scatter(x=fred_data["미국 의류 소비자물가지수(CPI)"].index, y=fred_data["미국 의류 소비자물가지수(CPI)"], mode='lines', line=dict(color='#D35400', width=2)))
-                fig_cpi.update_layout(title="미국 의류 CPI (인플레이션)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                s = fred_data["미국 의류 소비자물가지수(CPI)"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                st.markdown(f"👕 **시작:** {f_val:,.1f} → **최신:** {l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+                
+                fig_cpi = go.Figure(go.Scatter(x=s.index, y=s, mode='lines', line=dict(color='#D35400', width=2)))
+                fig_cpi.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.1f}", f"{l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#D35400'), showlegend=False))
+                fig_cpi.update_layout(height=300, margin=dict(l=30, r=30, t=20, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_cpi, use_container_width=True)
             else:
                 st.error("CPI 데이터를 불러올 수 없습니다.")
 
         if not fred_data["미국 소매업 재고율"].empty:
-            fig_inv = go.Figure(go.Scatter(x=fred_data["미국 소매업 재고율"].index, y=fred_data["미국 소매업 재고율"], mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
-            fig_inv.update_layout(title="미국 소매업 재고율 (높을수록 창고에 재고가 많음을 의미)", height=300, margin=dict(l=30, r=30, t=40, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
+            s = fred_data["미국 소매업 재고율"]
+            f_val, l_val = s.iloc[0], s.iloc[-1]
+            chg = ((l_val - f_val) / f_val) * 100
+            st.markdown(f"📦 **시작:** {f_val:.2f} → **최신:** {l_val:.2f} (증감률: **{chg:+.1f}%**)")
+            
+            fig_inv = go.Figure(go.Scatter(x=s.index, y=s, mode='lines', fill='tozeroy', line=dict(color='#16A085', width=2)))
+            fig_inv.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}", f"{l_val:.2f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#16A085'), showlegend=False))
+            fig_inv.update_layout(height=300, margin=dict(l=30, r=30, t=20, b=30), plot_bgcolor='white', xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray', tickformat=".2f"))
             st.plotly_chart(fig_inv, use_container_width=True)
         else:
             st.error("재고율 데이터를 불러올 수 없습니다.")
