@@ -541,60 +541,51 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (환율/금리 비교 추가)
+# [Tab 4] 🌐 거시경제 및 원가 지표
 # ==========================================
+
+# 1. 데이터를 가져오는 함수는 블록 바깥에 따로 정의합니다 (에러 방지)
+@st.cache_data(ttl=3600)
+def get_macro_data_final():
+    import pandas as pd
+    import requests
+    import yfinance as yf
+    
+    # 기본 변수 설정
+    FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    
+    # FRED 데이터 가져오기 함수
+    def fetch_fred(ticker):
+        try:
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
+            response = requests.get(url, headers=headers, timeout=30)
+            data = response.json()['observations']
+            df = pd.DataFrame(data)
+            df['date'] = pd.to_datetime(df['date'])
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            return df.set_index('date')['value'].dropna()
+        except:
+            return pd.Series()
+
+    # 데이터 수집
+    yf_tickers = {"원/달러 환율": "KRW=X", "글로벌 면화(Cotton)": "CT=F", "WTI 국제 유가": "CL=F"}
+    yf_data = {name: yf.Ticker(ticker).history(period="1y")['Close'] for name, ticker in yf_tickers.items()}
+    
+    us_rate = fetch_fred("FEDFUNDS")
+    kr_rate = fetch_fred("KORINTPA01STSAM")
+    if kr_rate.empty:
+        kr_rate = pd.Series(3.5, index=pd.date_range(end=pd.Timestamp.today(), periods=60, freq='ME'))
+
+    return yf_data, us_rate, kr_rate
+
 with tab4:
     st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
-    st.caption("환율, 금리, 원자재 및 미국 거시경제 지표를 실시간으로 가져옵니다.")
     
-    @st.cache_data(ttl=3600)
-    def get_macro_data_v2():
-        import pandas as pd
-        import requests
-        import time
-        import yfinance as yf
-        
-        # 1. 야후 파이낸스 데이터 (환율, 면화, 유가)
-        yf_tickers = {"원/달러 환율": "KRW=X", "글로벌 면화(Cotton)": "CT=F", "WTI 국제 유가": "CL=F"}
-        yf_data = {}
-        for name, ticker in yf_tickers.items():
-            try:
-                hist = yf.Ticker(ticker).history(period="1y")
-                yf_data[name] = hist['Close']
-            except: yf_data[name] = pd.Series()
-                
-        # 2. 미국 FRED 데이터 (GDP, CPI, 재고, 미국금리)
-        FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
-        fred_tickers = {
-            "미국 실질 GDP": "GDPC1",                 
-            "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
-            "미국 소매업 재고율": "RETAILIRSA",
-            "미국 기준금리": "FEDFUNDS",
-            "한국 기준금리": "KORINTPA01STSAM"
-        }
-        fred_data = {}
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        
-        for name, ticker in fred_tickers.items():
-            try:
-                url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-                response = requests.get(url, headers=headers, timeout=30)
-                data = response.json()['observations']
-                df = pd.DataFrame(data)
-                df['date'] = pd.to_datetime(df['date'])
-                df['value'] = pd.to_numeric(df['value'], errors='coerce')
-                fred_data[name] = df.set_index('date')['value'].dropna()
-            except: fred_data[name] = pd.Series()
-        
-        # 한국 기준금리 (예시용: 최근 금리 수준 반영)
-        df_kr = pd.Series([3.50]*12, index=pd.date_range(end=pd.Timestamp.today(), periods=12, freq='ME'))
-        
-        return yf_data, fred_data, df_kr
-
     try:
-        yf_data, fred_data, kr_rates = get_macro_data_v2()
+        yf_data, us_rate, kr_rate = get_macro_data_final()
         
-        # --- 1층: 환율 및 금리 나란히 배치 ---
+        # 1층: 환율 및 금리 나란히 배치
         col1, col2 = st.columns(2)
         
         with col1:
@@ -606,54 +597,13 @@ with tab4:
         with col2:
             st.markdown("### 🏦 한·미 기준금리 추이")
             fig_rate = go.Figure()
-            fig_rate.add_trace(go.Scatter(x=fred_data["미국 기준금리"].index, y=fred_data["미국 기준금리"], name='미국 (Fed)', line=dict(color='#d62728')))
-            fig_rate.add_trace(go.Scatter(x=kr_rates.index, y=kr_rates, name='한국 (BOK)', line=dict(color='#1f77b4')))
+            fig_rate.add_trace(go.Scatter(x=us_rate.index, y=us_rate, name='미국 (Fed)', line=dict(color='#d62728')))
+            fig_rate.add_trace(go.Scatter(x=kr_rate.index, y=kr_rate, name='한국 (BOK)', line=dict(color='#1f77b4')))
             fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white', legend=dict(orientation="h", y=1.1))
             st.plotly_chart(fig_rate, use_container_width=True)
 
         st.markdown("---")
-        
-        # --- 2층: 원자재 (기존 코드와 동일) ---
-        # (기존 원자재 코드 유지...)
-        
-        # --- 3층: 거시경제 (기존 코드와 동일) ---
-        # (기존 거시경제 코드 유지...)
+        # (이후 원자재/거시경제 차트 코드를 여기에 이어 붙이시면 됩니다.)
 
-# 2. 미국/한국 금리 FRED 데이터 가져오기
-    # 한국 금리 Ticker: KORINTPA01STSAM
-    # 주의: 데이터가 비어있을 경우를 대비해 예비 리스트(fallback)를 준비합니다.
-    
-    # [코드 수정 부분]
-    # 미국 금리와 한국 금리를 각각 안전하게 가져옵니다.
-    def get_safe_fred(ticker):
-        try:
-            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-            response = requests.get(url, headers=headers, timeout=30)
-            data = response.json()['observations']
-            df = pd.DataFrame(data)
-            df['date'] = pd.to_datetime(df['date'])
-            df['value'] = pd.to_numeric(df['value'], errors='coerce')
-            return df.set_index('date')['value'].dropna()
-        except:
-            return pd.Series() # 실패하면 빈 데이터 반환
-
-    # 데이터 가져오기
-    us_rate = get_safe_fred("FEDFUNDS")
-    kr_rate = get_safe_fred("KORINTPA01STSAM")
-
-    # [중요] 만약 한국 금리가 끝내 안 나오면 (데이터 서버 지연 등), 
-    # 최소한의 시각화를 위해 우리가 알고 있는 최근 금리(3.5%)를 강제로 채워 넣습니다.
-    if kr_rate.empty:
-        kr_rate = pd.Series(3.5, index=pd.date_range(end=pd.Timestamp.today(), periods=60, freq='ME'))
-
-    # 이제 이 kr_rate를 차트에 사용합니다.
-    with col2:
-        st.markdown("### 🏦 한·미 기준금리 추이")
-        fig_rate = go.Figure()
-        fig_rate.add_trace(go.Scatter(x=us_rate.index, y=us_rate, name='미국 (Fed)', line=dict(color='#d62728')))
-        fig_rate.add_trace(go.Scatter(x=kr_rate.index, y=kr_rate, name='한국 (BOK)', line=dict(color='#1f77b4')))
-        fig_rate.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), plot_bgcolor='white')
-        st.plotly_chart(fig_rate, use_container_width=True)
-        
     except Exception as e:
-        st.error(f"오류 발생: {e}")
+        st.error(f"데이터를 불러오는 중 오류 발생: {e}")
