@@ -566,10 +566,11 @@ with tab4:
         # 2. 미국 FRED 데이터 (GDP, CPI, 재고, 미국금리)
         FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
         fred_tickers = {
-            "미국 실질 GDP": "GDPC1",
-            "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",
+            "미국 실질 GDP": "GDPC1",                 
+            "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
             "미국 소매업 재고율": "RETAILIRSA",
-            "미국 기준금리": "FEDFUNDS"
+            "미국 기준금리": "FEDFUNDS",
+            "한국 기준금리": "KORINTPA01STSAM"
         }
         fred_data = {}
         headers = {'User-Agent': 'Mozilla/5.0'}
