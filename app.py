@@ -174,15 +174,13 @@ with tab1:
                 return [''] * len(row)
 
             styled_table = table_df.style.apply(highlight_clothing, axis=1).format("{:.1f}%", na_rep="-")
-            total_rows = len(table_df)
-            row_height = 35 # 한 행당 높이(px)
-            header_height = 50 # 헤더 높이
-            calculated_height = (total_rows * row_height) + header_height
             
+            # 💡 아래 코드를 그대로 복사해서 넣어주세요
             st.dataframe(
                 styled_table, 
                 use_container_width=True, 
-                height=calculated_height
+                height=len(table_df) * 35 + 50
+            )
 
     except Exception as e:
         st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
