@@ -13,17 +13,15 @@ st.title("📊 US Market & Trade & Company Dashboard")
 tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
 
 # ==========================================
-# [Tab 1] 미국 소매 판매 현황 (FRED API + 14개 풀네임 완벽 복구 🚀)
+# [Tab 1] 미국 소매 판매 현황 (Offline 맨 아래로 정렬 🚀)
 # ==========================================
 with tab1:
-    # 💡 함수 이름을 바꿔서 기존 찌꺼기(Cache) 데이터를 강제로 무시하고 새로 불러옵니다!
     @st.cache_data(ttl=3600)
-    def get_fred_retail_sales_v2():
+    def get_fred_retail_sales_v4():
         import requests
         import time
         import pandas as pd
         
-        # 💡 1. 13개의 카테고리를 공식 '풀네임'으로 매핑 (오프라인 제외 13개)
         series_map = {
             "Total Retail Trade": "RSAFS",
             "Nonstore Retailers": "RSNSR",
@@ -57,7 +55,7 @@ with tab1:
                         temp_df['Category'] = cat
                         temp_df = temp_df[['Date', 'Category', 'Sales']].dropna()
                         all_data.append(temp_df)
-                        time.sleep(0.2) # API 과부하 방지 (14개 누락 방지)
+                        time.sleep(0.2) 
                         break 
                     else:
                         time.sleep(2)
@@ -70,7 +68,6 @@ with tab1:
             
         df = pd.concat(all_data, ignore_index=True)
         
-        # 💡 2. 오프라인(Offline) 카테고리 직접 계산 (Total - Nonstore) = 총 14개 완성!
         df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
         if 'Total Retail Trade' in df_pivot.columns and 'Nonstore Retailers' in df_pivot.columns:
             df_pivot['Offline'] = df_pivot['Total Retail Trade'] - df_pivot['Nonstore Retailers']
@@ -79,10 +76,10 @@ with tab1:
         return df_final
 
     try:
-        df = get_fred_retail_sales_v2()
+        df = get_fred_retail_sales_v4()
         
         if df.empty:
-            st.error("FRED 서버에서 소매 판매 데이터를 가져오지 못했습니다.")
+            st.error("FRED 서버에서 데이터를 가져오지 못했습니다.")
         else:
             latest_date = df['Date'].max()
             current_year = latest_date.year
@@ -98,30 +95,31 @@ with tab1:
             sum_prev = df_prev.groupby('Category')['Sales'].sum()
             
             ytd_growth = ((sum_curr / sum_prev) - 1) * 100
-            ytd_growth = ytd_growth.dropna().reset_index()
-            ytd_growth.columns = ['Category', 'Growth']
             
-            # 💡 3. 어떤 상황에서도 14개가 똑같은 순서로 나오도록 강제 박제 (순서 원하시면 여기서 바꾸시면 됩니다)
+            # 💡 Offline을 리스트의 맨 마지막 순서로 배치했습니다!
             exact_14_order = [
-                "Total Retail Trade",
-                "Offline",
+                "Total Retail Trade", 
                 "Nonstore Retailers",
-                "Clothing and Clothing Accessories Stores",
-                "General Merchandise Stores",
-                "Food and Beverage Stores",
-                "Health and Personal Care Stores",
-                "Gasoline Stations",
-                "Motor Vehicle and Parts Dealers",
-                "Furniture and Home Furnishings Stores",
-                "Electronics and Appliance Stores",
-                "Building Material and Garden Equipment and Supplies Dealers",
                 "Sporting Goods, Hobby, Musical Instrument, and Book Stores",
-                "Miscellaneous Store Retailers"
+                "General Merchandise Stores",
+                "Furniture and Home Furnishings Stores", 
+                "Electronics and Appliance Stores",
+                "Clothing and Clothing Accessories Stores", 
+                "Motor Vehicle and Parts Dealers",
+                "Building Material and Garden Equipment and Supplies Dealers",
+                "Food and Beverage Stores", 
+                "Health and Personal Care Stores",
+                "Gasoline Stations", 
+                "Miscellaneous Store Retailers",
+                "Offline"  # 👈 맨 마지막으로 이동
             ]
             
-            # 없는 카테고리가 섞이는 것을 방지하고, 무조건 위 14개 순서대로 정렬
+            ytd_growth = ytd_growth.reindex(exact_14_order).fillna(0).reset_index()
+            ytd_growth.columns = ['Category', 'Growth']
+            
             ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=exact_14_order, ordered=True)
-            ytd_growth = ytd_growth.sort_values('Category', ascending=False).dropna()
+            # Plotly 수평 바 차트는 밑에서부터 쌓이기 때문에 역순 정렬을 해줍니다.
+            ytd_growth = ytd_growth.sort_values('Category', ascending=False)
             
             colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
             
@@ -130,13 +128,12 @@ with tab1:
                 x=ytd_growth['Growth'],
                 y=ytd_growth['Category'],
                 orientation='h',
-                text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%"),
+                text=ytd_growth['Growth'].apply(lambda x: f"{x:.1f}%" if x != 0 else "데이터 지연"),
                 textposition='outside',
                 marker_color=colors,
                 marker_line_width=0 
             ))
 
-            # 💡 의류 섹터 레드 박스 하이라이팅 (풀네임 기준)
             target_cat = "Clothing and Clothing Accessories Stores"
             cat_list = ytd_growth['Category'].tolist()
             
@@ -153,10 +150,8 @@ with tab1:
                 plot_bgcolor='white', height=600, 
                 margin=dict(l=350, r=50, t=30, b=0), 
                 xaxis=dict(showgrid=True, gridcolor='lightgray'),
-                yaxis=dict(
-                    categoryorder='array', categoryarray=exact_14_order[::-1],
-                    automargin=True 
-                )
+                # 차트 축도 설정한 순서대로 완벽히 정렬되도록 고정
+                yaxis=dict(categoryorder='array', categoryarray=exact_14_order[::-1], automargin=True)
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -167,9 +162,8 @@ with tab1:
             yoy_df = df_pivot_table.pct_change(periods=12) * 100
             table_df = yoy_df.tail(12).T
             
-            # 표도 14개 순서 동일하게 강제 정렬
-            valid_table_order = [c for c in exact_14_order if c in table_df.index]
-            table_df = table_df.reindex(valid_table_order)
+            # 아래 표 데이터도 Offline이 맨 마지막 줄에 오도록 고정
+            table_df = table_df.reindex(exact_14_order)
             
             formatted_cols = [f"'{str(d.year)[-2:]} / {d.month}" for d in table_df.columns]
             table_df.columns = formatted_cols
@@ -180,7 +174,15 @@ with tab1:
                 return [''] * len(row)
 
             styled_table = table_df.style.apply(highlight_clothing, axis=1).format("{:.1f}%", na_rep="-")
-            st.dataframe(styled_table, use_container_width=True, height=550)
+            total_rows = len(table_df)
+            row_height = 35 # 한 행당 높이(px)
+            header_height = 50 # 헤더 높이
+            calculated_height = (total_rows * row_height) + header_height
+            
+            st.dataframe(
+                styled_table, 
+                use_container_width=True, 
+                height=calculated_height
 
     except Exception as e:
         st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
