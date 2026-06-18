@@ -13,14 +13,16 @@ st.title("📊 US Market & Trade & Company Dashboard")
 tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
 
 # ==========================================
-# [Tab 1] 미국 소매 판매 현황 (FRED API 자동화 탑재 🚀)
+# [Tab 1] 미국 소매 판매 현황 (FRED API + 기존 카테고리 완벽 복구 🚀)
 # ==========================================
 with tab1:
     @st.cache_data(ttl=3600)
     def get_fred_retail_sales():
         import requests
         import time
-        # 💡 FRED MRTS(소매판매) 카테고리별 공식 티커 매핑
+        import pandas as pd
+        
+        # 💡 1. 기존 CSV에 있던 카테고리명과 동일하게 매핑
         series_map = {
             "Retail Trade Total": "RSAFS",
             "Nonstore Retailers": "RSNSR",
@@ -28,10 +30,10 @@ with tab1:
             "General Merchandise": "RSGMS",
             "Furniture": "RSFHFS",
             "Electronics": "RSECAFS",
-            "Clothing and Clothing Access. Stores": "RSCCAS", # 의류 강조를 위해 이름 맞춤
+            "Clothing and Clothing Access. Stores": "RSCCAS", # 의류 레드박스 타겟팅
             "Motor Vehicle": "RSMVPD",
             "Building": "RSBMGESD",
-            "Food and Beverage": "RSDBS",
+            "Food and Beverage": "RSFDS",
             "Health": "RSHPCS",
             "Gasoline": "RSGASS",
             "Miscellaneous": "RSMSR"
@@ -54,19 +56,28 @@ with tab1:
                         temp_df['Category'] = cat
                         temp_df = temp_df[['Date', 'Category', 'Sales']].dropna()
                         all_data.append(temp_df)
-                        break # 성공시 루프 탈출
+                        break 
                     else:
                         time.sleep(2)
                 except Exception:
                     if attempt < 2:
                         time.sleep(2)
                         
-        if all_data:
-            return pd.concat(all_data, ignore_index=True)
-        return pd.DataFrame()
+        if not all_data:
+            return pd.DataFrame()
+            
+        df = pd.concat(all_data, ignore_index=True)
+        
+        # 💡 2. [핵심] FRED에 없는 'Offline(오프라인)' 카테고리 직접 계산 (전체 - 온라인)
+        df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
+        if 'Retail Trade Total' in df_pivot.columns and 'Nonstore Retailers' in df_pivot.columns:
+            df_pivot['Offline'] = df_pivot['Retail Trade Total'] - df_pivot['Nonstore Retailers']
+        
+        # 다시 원래의 깔끔한 형태로 되돌리기
+        df_final = df_pivot.reset_index().melt(id_vars='Date', var_name='Category', value_name='Sales').dropna()
+        return df_final
 
     try:
-        # 💡 기존 CSV 대신 FRED API에서 직접 데이터를 조립해 가져옵니다!
         df = get_fred_retail_sales()
         
         if df.empty:
@@ -78,7 +89,6 @@ with tab1:
             max_month = latest_date.month
 
             st.subheader(f"📈 미국 소매 카테고리 별 성장률 (1-{max_month}월) {prev_year} vs {current_year} (%)")
-            st.caption("※ 데이터 출처: FRED (실시간 API 연동)")
             
             df_curr = df[(df['Date'].dt.year == current_year) & (df['Date'].dt.month <= max_month)]
             sum_curr = df_curr.groupby('Category')['Sales'].sum()
@@ -90,11 +100,12 @@ with tab1:
             ytd_growth = ytd_growth.dropna().reset_index()
             ytd_growth.columns = ['Category', 'Growth']
             
+            # 💡 기존과 100% 동일한 순서 배열을 위한 키워드
             custom_order_keywords = [
                 "Retail Trade Total", "Nonstore Retailers", "Sporting Goods", 
                 "General Merchandise", "Furniture", "Electronics", "Clothing", 
                 "Motor Vehicle", "Building", "Food and Beverage", "Health", 
-                "Gasoline", "Miscellaneous"
+                "Gasoline", "Miscellaneous", "Offline"
             ]
             
             ordered_categories = []
@@ -122,6 +133,7 @@ with tab1:
                 marker_line_width=0 
             ))
 
+            # 💡 의류 섹터 레드 박스 하이라이팅
             target_cat = "Clothing and Clothing Access. Stores"
             cat_list = ytd_growth['Category'].tolist()
             
@@ -149,8 +161,8 @@ with tab1:
             st.markdown("---")
             st.subheader("📋 미국 소매 카테고리 별 전년 동월대비 증감률(%)")
             
-            df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
-            yoy_df = df_pivot.pct_change(periods=12) * 100
+            df_pivot_table = df.pivot(index='Date', columns='Category', values='Sales')
+            yoy_df = df_pivot_table.pct_change(periods=12) * 100
             table_df = yoy_df.tail(12).T
             
             valid_table_order = [c for c in ordered_categories if c in table_df.index]
