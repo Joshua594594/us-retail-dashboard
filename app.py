@@ -250,6 +250,18 @@ with tab2:
 
         styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
         st.dataframe(styled_yoy, use_container_width=True)
+
+        # 💡 표 높이를 행 개수에 맞게 자동 설정하여 스크롤을 제거합니다
+            total_rows_tab2 = len(table_df_tab2) # table_df_tab2는 Tab 2에서 사용하는 데이터프레임 변수명으로 맞춰주세요
+            row_height = 35 
+            header_height = 50 
+            calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
+            
+            st.dataframe(
+                styled_table_tab2, # 사용하시는 데이터프레임 변수명
+                use_container_width=True, 
+                height=calculated_height_tab2 
+            )
         
     except Exception as e:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
