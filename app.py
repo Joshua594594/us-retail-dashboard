@@ -248,20 +248,21 @@ with tab2:
             bg = color_map.get(row.name, '')
             return [bg] * len(row)
 
+        # 1. 스타일 입힌 데이터프레임 생성
         styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
-        st.dataframe(styled_yoy, use_container_width=True)
 
-        # 💡 표 높이를 행 개수에 맞게 자동 설정하여 스크롤을 제거합니다
-            total_rows_tab2 = len(table_df_tab2) # table_df_tab2는 Tab 2에서 사용하는 데이터프레임 변수명으로 맞춰주세요
-            row_height = 35 
-            header_height = 50 
-            calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
-            
-            st.dataframe(
-                styled_table_tab2, # 사용하시는 데이터프레임 변수명
-                use_container_width=True, 
-                height=calculated_height_tab2 
-            )
+        # 2. 높이 자동 계산 (df_yoy 행 개수 기준)
+        total_rows_tab2 = len(df_yoy) 
+        row_height = 35 
+        header_height = 50 
+        calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
+        
+        # 3. 스크롤 없는 표 출력
+        st.dataframe(
+            styled_yoy, 
+            use_container_width=True, 
+            height=calculated_height_tab2 
+        )
         
     except Exception as e:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
