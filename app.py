@@ -752,18 +752,18 @@ with tab4:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 5] 🔗 한솔 BI 포털 연동
+# [Tab 5] 🔗 한솔 BI 포털 내부 삽입 (테스트 버전)
 # ==========================================
 with tab5:
-    st.subheader("📊 한솔 BI 포털 시스템 연동")
-    st.caption("아래 버튼을 클릭하시면 한솔 BI 포털 분석 화면으로 바로 이동합니다.")
+    st.subheader("📊 한솔 BI 포털 시스템")
+    st.caption("대시보드 내부에서 한솔 BI 포털 화면을 바로 확인합니다.")
     
-    # 깔끔하고 큰 링크 버튼 생성
-    st.link_button(
-        "🚀 한솔 BI 포털 바로가기 (새 창에서 열기)",
+    # 💡 웹사이트를 대시보드 내부에 통째로 집어넣는 명령어입니다.
+    # width(가로)와 height(세로 높이)를 조절할 수 있습니다.
+    import streamlit.components.v1 as components
+    
+    components.iframe(
         "https://biportal.hansoll.com/Common/BIReport_Popup/MjIzMjIzNTc3",
-        use_container_width=True
+        height=800,              # 화면 높이를 800픽셀로 넉넉하게 설정
+        scrolling=True           # 내부 스크롤 허용
     )
-    
-    # 안내 메시지 박스
-    st.info("💡 사내 보안 정책 및 방화벽(X-Frame-Options)에 따라 사내 시스템 화면을 대시보드 내부에 직접 삽입하는 것은 차단될 수 있습니다. 따라서 위 버튼을 눌러 새 창에서 안전하게 확인하시는 방식이 가장 안정적입니다.")
