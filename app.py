@@ -10,7 +10,7 @@ st.title("📊 US Market & Trade & Company Dashboard")
 
 # 2. 탭 생성 (이제 탭이 4개입니다!)
 # 💡 기존의 3개짜리 st.tabs를 지우고, 반드시 아래와 같이 4개로 정의해야 합니다!
-tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가", "한솔섬유 BI 포털"])
 
 # ==========================================
 # [Tab 1] 미국 소매 판매 현황 (Offline 맨 아래로 정렬 🚀)
