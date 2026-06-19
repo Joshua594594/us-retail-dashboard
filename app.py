@@ -752,18 +752,127 @@ with tab4:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 5] 🔗 한솔 BI 포털 내부 삽입 (테스트 버전)
+# [Tab 5] 🔒 신용 리스크 & 바이어 매트릭스 (최종 매트릭스 판 🚀)
 # ==========================================
+
+# 💡 11개 바이어의 주가 및 수익률을 한 번에 가져와 매트릭스에 매칭하는 독립 함수
+@st.cache_data(ttl=3600)
+def get_all_buyers_matrix_stock():
+    import yfinance as yf
+    import pandas as pd
+    
+    buyer_tickers = {
+        "Walmart": "WMT",
+        "Target Corp.": "TGT",
+        "Kohl's": "KSS",
+        "Michaels Cos. Inc. (The)": None, # 비상장
+        "Fast Retailing Co. Ltd.": "FRCOY",
+        "Victoria's Secret & Co.": "VSCO",
+        "Gap Inc.": "GAP",
+        "UNDER ARMOUR": "UAA",
+        "Abercrombie & Fitch Co.": "ANF",
+        "Carter's, Inc.": "CRI",
+        "PVH": "PVH"
+    }
+    
+    results = {}
+    for name, ticker in buyer_tickers.items():
+        if ticker:
+            try:
+                stock = yf.Ticker(ticker).history(period="1y")
+                if not stock.empty:
+                    current_price = stock['Close'].iloc[-1]
+                    start_price = stock['Close'].iloc[0]
+                    chg = ((current_price - start_price) / start_price) * 100
+                    results[name] = {"주가": f"${current_price:,.2f}", "변동률": f"{chg:+.1f}%"}
+                else:
+                    results[name] = {"주가": "N/A", "변동률": "-"}
+            except:
+                results[name] = {"주가": "N/A", "변동률": "-"}
+        else:
+            results[name] = {"주가": "비상장 (Private)", "변동률": "-"}
+    return results
+
+
 with tab5:
-    st.subheader("📊 한솔 BI 포털 시스템")
-    st.caption("대시보드 내부에서 한솔 BI 포털 화면을 바로 확인합니다.")
+    st.subheader("🔒 바이어 신용 리스크 및 주요 고객사 통합 매트릭스")
+    st.caption("무디스(Moody's) 및 S&P의 장기(LT) 신용등급 기준표와 실시간 자본시장 지표를 연동하여 바이어 부도 및 대금 미수 리스크를 종합 관리합니다.")
     
-    # 💡 웹사이트를 대시보드 내부에 통째로 집어넣는 명령어입니다.
-    # width(가로)와 height(세로 높이)를 조절할 수 있습니다.
-    import streamlit.components.v1 as components
-    
-    components.iframe(
-        "https://biportal.hansoll.com/Common/BIReport_Popup/MjIzMjIzNTc3",
-        height=800,              # 화면 높이를 800픽셀로 넉넉하게 설정
-        scrolling=True           # 내부 스크롤 허용
-    )
+    try:
+        import plotly.graph_objects as go
+        import pandas as pd
+        yf_data, fred_data = get_macro_data_complete_final()
+        
+        # --- 1층: 거시 신용 스프레드 및 S&P 500 나란히 배치 ---
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📉 무디스 BAA 회사채 신용 스프레드 (최근 5년)")
+            if not fred_data["무디스 BAA 회사채 스프레드"].empty:
+                s = fred_data["무디스 BAA 회사채 스프레드"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                st.write(f"🔹 시작: {f_val:.2f}%p ➔ 최신: {l_val:.2f}%p (변동 폭: **{l_val-f_val:+.2f}%p**)")
+                st.caption("※ 높을수록 글로벌 기업들의 자금 조달 리스크(부도 위험)가 커짐을 의미합니다.")
+                
+                fig_spread = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color='#C0392B', width=2)))
+                fig_spread.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}%p", f"{l_val:.2f}%p"], textposition=["top right", "top left"], marker=dict(size=8, color='#C0392B')))
+                fig_spread.update_layout(height=260, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_spread, use_container_width=True)
+            else:
+                st.info("신용 스프레드 데이터를 불러올 수 없습니다.")
+                
+        with col2:
+            st.markdown("#### 🇺🇸 미국 S&P 500 주가지수 (최근 1년)")
+            if not yf_data["S&P 500 지수"].empty:
+                s = yf_data["S&P 500 지수"]
+                f_val, l_val = s.iloc[0], s.iloc[-1]
+                chg = ((l_val - f_val) / f_val) * 100
+                st.write(f"🔹 시작: {f_val:,.1f} ➔ 최신: {l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+                st.caption("※ 미국 전반적인 경기 상태와 자본 시장의 펀더멘탈 체력을 반영합니다.")
+                
+                fig_sp = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color='#27AE60', width=2)))
+                fig_sp.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.1f}", f"{l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#27AE60')))
+                fig_sp.update_layout(height=260, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
+                st.plotly_chart(fig_sp, use_container_width=True)
+            else:
+                st.info("S&P 500 지수 데이터를 불러올 수 없습니다.")
+                
+        st.markdown("---")
+        
+        # --- 2층: 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스 ---
+        st.markdown("### 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스")
+        st.caption("※ 아래 표는 무디스 및 S&P가 공식 갱신한 바이어별 최신 장기(Long-Term) 신용등급과 실시간 증시 데이터를 결합한 리스크 관리 보드입니다.")
+        
+        # 💡 이미지 자료를 기반으로 한 하드코딩 데이터 매트릭스 구축
+        matrix_rows = [
+            {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2", "S&P 등급 (LT)": "AA"},
+            {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2", "S&P 등급 (LT)": "A"},
+            {"BUYER (고객사)": "Kohl's", "Moody's 등급 (LT)": "B2", "S&P 등급 (LT)": "B+"},
+            {"BUYER (고객사)": "Michaels Cos. Inc. (The)", "Moody's 등급 (LT)": "B3", "S&P 등급 (LT)": "B-"},
+            {"BUYER (고객사)": "Fast Retailing Co. Ltd.", "Moody's 등급 (LT)": "A3", "S&P 등급 (LT)": "A+"},
+            {"BUYER (고객사)": "Victoria's Secret & Co.", "Moody's 등급 (LT)": "Ba3", "S&P 등급 (LT)": "BB-"},
+            {"BUYER (고객사)": "Gap Inc.", "Moody's 등급 (LT)": "Ba2", "S&P 등급 (LT)": "BB+"},
+            {"BUYER (고객사)": "UNDER ARMOUR", "Moody's 등급 (LT)": "B1", "S&P 등급 (LT)": "BB-"},
+            {"BUYER (고객사)": "Abercrombie & Fitch Co.", "Moody's 등급 (LT)": "B1", "S&P 등급 (LT)": "BB"},
+            {"BUYER (고객사)": "Carter's, Inc.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB+"},
+            {"BUYER (고객사)": "PVH", "Moody's 등급 (LT)": "Baa3", "S&P 등급 (LT)": "BBB-"}
+        ]
+        df_matrix = pd.DataFrame(matrix_rows)
+        
+        # 실시간 야후 파이낸스 주가 데이터 결합 작업
+        stock_map = get_all_buyers_matrix_stock()
+        df_matrix["현재 주가 (USD)"] = df_matrix["BUYER (고객사)"].map(lambda x: stock_map.get(x, {}).get("주가", "N/A"))
+        df_matrix["최근 1년 변동률"] = df_matrix["BUYER (고객사)"].map(lambda x: stock_map.get(x, {}).get("변동률", "-"))
+        
+        # 스트림릿의 세련된 대화형 데이터프레임으로 출력 (인덱스 숨김 처리)
+        st.dataframe(
+            df_matrix, 
+            use_container_width=True, 
+            hide_index=True
+        )
+        
+        # 범례 가이드 블록 추가
+        st.info("💡 **신용등급 가이드:** 투자적격등급(Moody's Baa3 이상 / S&P BBB- 이상)의 바이어는 상대적으로 안정적인 대금 회수가 가능하나, 투기등급(B 또는 BB 계열 이하)에 속한 바이어는 신용 스프레드 추이를 상시 모니터링하여 미수금 한도를 선제적으로 관리해야 합니다.")
+            
+    except Exception as e:
+        st.error(f"데이터 매트릭스를 구성하는 중 오류가 발생했습니다: {e}")
