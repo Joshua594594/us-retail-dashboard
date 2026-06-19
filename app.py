@@ -752,7 +752,7 @@ with tab4:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 5] 🛡️ 신용 리스크 & 바이어 매트릭스 (최종 완료판 🚀)
+# [Tab 5] 🛡️ 신용 리스크 & 바이어 매트릭스 (형식 오류 완벽 해결판 🚀)
 # ==========================================
 
 # 💡 1. Tab 5 전용 금융 데이터 수집 함수
@@ -767,12 +767,17 @@ def get_tab5_financial_data():
     start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
     
     try:
-        sp500 = yf.download("^GSPC", period="1y", progress=False)['Close']
+        # 단일 티커이므로 안전하게 다운로드 후 Close 컬럼만 추출
+        df_sp = yf.download("^GSPC", period="1y", progress=False)
+        if 'Close' in df_sp.columns:
+            sp500 = df_sp['Close']
+        else:
+            sp500 = pd.Series()
     except:
         sp500 = pd.Series()
         
     try:
-        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=BAA10Y&api_key={FRED_API_KEY}&file_type=json"
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id={BAA10Y}&api_key={FRED_API_KEY}&file_type=json"
         res = requests.get(url, headers=headers, timeout=30)
         df = pd.DataFrame(res.json()['observations'])
         df['date'] = pd.to_datetime(df['date'])
@@ -784,7 +789,7 @@ def get_tab5_financial_data():
         
     return sp500, moodys
 
-# 💡 2. 11개 바이어의 실시간 주가 매트릭스 수집 함수 (yf.download 일괄 처리로 차단/지연 완벽 해결 🚀)
+# 💡 2. 11개 바이어의 실시간 주가 매트릭스 수집 함수 (Series format 에러 완벽 방어 🛡️)
 @st.cache_data(ttl=3600)
 def get_all_buyers_matrix_stock():
     import yfinance as yf
@@ -808,7 +813,7 @@ def get_all_buyers_matrix_stock():
     results = {}
     
     try:
-        # 10개 티커를 한 번의 요청으로 일괄 다운로드하여 Yahoo Finance 서버 차단을 원천 방지합니다.
+        # 일괄 다운로드 진행
         df_stock = yf.download(active_tickers, period="1y", progress=False)
         
         for name, ticker in buyer_tickers.items():
@@ -816,19 +821,28 @@ def get_all_buyers_matrix_stock():
                 results[name] = {"주가": "비상장 (Private)", "변동률": "-"}
                 continue
                 
-            # 야후파이낸스 환경에 따른 다양한 데이터 반환 형태에 모두 대응하는 안전 장치
-            if ('Close', ticker) in df_stock.columns:
-                series = df_stock[('Close', ticker)].dropna()
-            elif ticker in df_stock.columns:
-                series = df_stock[ticker].dropna()
-            elif 'Close' in df_stock.columns and ticker in df_stock['Close'].columns:
-                series = df_stock['Close'][ticker].dropna()
+            # [수정 핵심] 데이터프레임 구조에서 해당 티커의 Close 데이터만 안전하게 슬라이싱합니다.
+            series = pd.Series()
+            if isinstance(df_stock.columns, pd.MultiIndex):
+                if ('Close', ticker) in df_stock.columns:
+                    series = df_stock.loc[:, ('Close', ticker)].dropna()
             else:
-                series = pd.Series()
-                
+                if ticker in df_stock.columns:
+                    series = df_stock.loc[:, ticker].dropna()
+                elif 'Close' in df_stock.columns and isinstance(df_stock['Close'], pd.DataFrame) and ticker in df_stock['Close'].columns:
+                    series = df_stock['Close'].loc[:, ticker].dropna()
+            
+            # 한 번 더 개별 종목 단독 가져오기 백업 로직 (MultiIndex 구조가 완전히 꼬였을 때를 대비)
+            if series.empty:
+                try:
+                    series = yf.Ticker(ticker).history(period="1y")['Close'].dropna()
+                except:
+                    pass
+
+            # 단일 값(스칼라)이 정확히 추출되었을 때만 포맷팅 적용하여 Series format 에러 원천 차단!
             if not series.empty:
-                current_price = series.iloc[-1]
-                start_price = series.iloc[0]
+                current_price = float(series.iloc[-1])
+                start_price = float(series.iloc[0])
                 chg = ((current_price - start_price) / start_price) * 100
                 results[name] = {"주가": f"${current_price:,.2f}", "변동률": f"{chg:+.1f}%"}
             else:
@@ -861,12 +875,12 @@ with tab5:
             st.markdown("#### 📉 무디스 BAA 회사채 신용 스프레드 (최근 5년)")
             if not moodys_data.empty:
                 s = moodys_data
-                f_val, l_val = s.iloc[0], s.iloc[-1]
+                f_val, l_val = float(s.iloc[0]), float(s.iloc[-1])
                 st.write(f"🔹 시작: {f_val:.2f}%p ➔ 최신: {l_val:.2f}%p (변동 폭: **{l_val-f_val:+.2f}%p**)")
                 st.caption("※ 높을수록 글로벌 기업들의 자금 조달 리스크(부도 위험)가 커짐을 의미합니다.")
                 
                 fig_spread = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color='#C0392B', width=2)))
-                fig_spread.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}%p", f"{l_val:.2f}%p"], textposition=["top right", "top left"], marker=dict(size=8, color='#C0392B')))
+                fig_spread.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}%p", f"{l_val:.2f}%p LANE"], textposition=["top right", "top left"], marker=dict(size=8, color='#C0392B')))
                 fig_spread.update_layout(height=260, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
                 st.plotly_chart(fig_spread, use_container_width=True)
             else:
@@ -876,7 +890,7 @@ with tab5:
             st.markdown("#### 🇺🇸 미국 S&P 500 주가지수 (최근 1년)")
             if not sp500_data.empty:
                 s = sp500_data
-                f_val, l_val = s.iloc[0], s.iloc[-1]
+                f_val, l_val = float(s.iloc[0]), float(s.iloc[-1])
                 chg = ((l_val - f_val) / f_val) * 100
                 st.write(f"🔹 시작: {f_val:,.1f} ➔ 최신: {l_val:,.1f} (증감률: **{chg:+.1f}%**)")
                 st.caption("※ 미국 전반적인 경기 상태와 자본 시장의 펀더멘탈 체력을 반영합니다.")
