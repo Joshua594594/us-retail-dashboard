@@ -10,7 +10,7 @@ st.title("📊 US Market & Trade & Company Dashboard")
 
 # 2. 탭 생성 (이제 탭이 4개입니다!)
 # 💡 기존의 3개짜리 st.tabs를 지우고, 반드시 아래와 같이 4개로 정의해야 합니다!
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가", "바이어 신용등급"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가", "🛡️ 바이어 신용등급"])
 
 # ==========================================
 # [Tab 1] 미국 소매 판매 현황 (Offline 맨 아래로 정렬 🚀)
@@ -752,7 +752,7 @@ with tab4:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 5] 🔒 신용 리스크 & 바이어 매트릭스 (확정 날짜 추가 반영판 🚀)
+# [Tab 5] 🛡️ 신용 리스크 & 바이어 매트릭스 (최종 완료판 🚀)
 # ==========================================
 
 # 💡 1. Tab 5 전용 금융 데이터 수집 함수
@@ -824,7 +824,7 @@ def get_all_buyers_matrix_stock():
 
 
 with tab5:
-    st.subheader("🔒 바이어 신용 리스크 및 주요 고객사 통합 매트릭스")
+    st.subheader("🛡️ 바이어 신용 리스크 및 주요 고객사 통합 매트릭스")
     st.caption("무디스(Moody's) 및 S&P의 장기(LT) 신용등급 기준표와 실시간 자본시장 지표를 연동하여 바이어 부도 및 대금 미수 리스크를 종합 관리합니다.")
     
     try:
@@ -871,20 +871,20 @@ with tab5:
         
         # --- 2층: 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스 ---
         st.markdown("### 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스")
-        st.caption("※ 아래 표는 무디스 및 S&P가 공식 발표한 바이어별 최신 장기(Long-Term) 신용등급과 최신 확정 날짜를 결합한 리스크 보드입니다.")
+        st.caption("※ 아래 표는 무디스 및 S&P가 공식 발표한 바이어별 최신 장기(Long-Term) 신용등급 리스크 보드입니다.")
         
-        # 💡 각 신용등급 성적표 옆에 최근 확정일을 추가하여 투명성을 강화했습니다.
+        # 💡 요청하신 3개 기업(Fast Retailing, A&F, Carter's)의 무디스 등급을 n/a로 깔끔하게 수정했습니다.
         matrix_rows = [
             {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2 ('96.03)", "S&P 등급 (LT)": "AA ('20.05)"},
             {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2 ('19.01)", "S&P 등급 (LT)": "A ('20.03)"},
             {"BUYER (고객사)": "Kohl's", "Moody's 등급 (LT)": "B2 ('25.05)", "S&P 등급 (LT)": "B+ ('25.09)"},
             {"BUYER (고객사)": "Michaels Cos. Inc. (The)", "Moody's 등급 (LT)": "B3 ('23.04)", "S&P 등급 (LT)": "B- ('24.04)"},
-            {"BUYER (고객사)": "Fast Retailing Co. Ltd.", "Moody's 등급 (LT)": "A3 ('08.06)", "S&P 등급 (LT)": "A+ ('20.06)"},
+            {"BUYER (고객사)": "Fast Retailing Co. Ltd.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "A+ ('20.06)"},
             {"BUYER (고객사)": "Victoria's Secret & Co.", "Moody's 등급 (LT)": "Ba3 ('21.06)", "S&P 등급 (LT)": "BB- ('21.06)"},
             {"BUYER (고객사)": "Gap Inc.", "Moody's 등급 (LT)": "Ba2 ('25.02)", "S&P 등급 (LT)": "BB+ ('25.12)"},
             {"BUYER (고객사)": "UNDER ARMOUR", "Moody's 등급 (LT)": "B1 ('25.12)", "S&P 등급 (LT)": "BB- ('24.05)"},
-            {"BUYER (고객사)": "Abercrombie & Fitch Co.", "Moody's 등급 (LT)": "B1 ('17.03/조회불가)", "S&P 등급 (LT)": "BB ('24.04)"},
-            {"BUYER (고객사)": "Carter's, Inc.", "Moody's 등급 (LT)": "n/a (조회불가)", "S&P 등급 (LT)": "BB+ ('20.04)"},
+            {"BUYER (고객사)": "Abercrombie & Fitch Co.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB ('24.04)"},
+            {"BUYER (고객사)": "Carter's, Inc.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB+ ('20.04)"},
             {"BUYER (고객사)": "PVH", "Moody's 등급 (LT)": "Baa3 ('19.04)", "S&P 등급 (LT)": "BBB- ('18.05)"}
         ]
         df_matrix = pd.DataFrame(matrix_rows)
