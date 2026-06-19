@@ -752,10 +752,41 @@ with tab4:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 5] 🔒 신용 리스크 & 바이어 매트릭스 (최종 매트릭스 판 🚀)
+# [Tab 5] 🔒 신용 리스크 & 바이어 매트릭스 (오류 해결 자립형 판 🚀)
 # ==========================================
 
-# 💡 11개 바이어의 주가 및 수익률을 한 번에 가져와 매트릭스에 매칭하는 독립 함수
+# 💡 1. Tab 5 전용 금융 데이터 수집 함수 (KeyError를 원천 차단합니다)
+@st.cache_data(ttl=3600)
+def get_tab5_financial_data():
+    import pandas as pd
+    import requests
+    import yfinance as yf
+    
+    FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
+    
+    # [A] S&P 500 지수 수집
+    try:
+        sp500 = yf.Ticker("^GSPC").history(period="1y")['Close']
+    except:
+        sp500 = pd.Series()
+        
+    # [B] 무디스 BAA 회사채 스프레드 수집
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=BAA10Y&api_key={FRED_API_KEY}&file_type=json"
+        res = requests.get(url, headers=headers, timeout=30)
+        df = pd.DataFrame(res.json()['observations'])
+        df['date'] = pd.to_datetime(df['date'])
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        df = df.set_index('date')['value'].dropna()
+        moodys = df[df.index >= start_date]
+    except:
+        moodys = pd.Series()
+        
+    return sp500, moodys
+
+# 💡 2. 11개 바이어의 실시간 주가 매트릭스 수집 함수
 @st.cache_data(ttl=3600)
 def get_all_buyers_matrix_stock():
     import yfinance as yf
@@ -801,15 +832,17 @@ with tab5:
     try:
         import plotly.graph_objects as go
         import pandas as pd
-        yf_data, fred_data = get_macro_data_complete_final()
+        
+        # 외부 함수 대신 내부 전용 함수에서 데이터를 안전하게 가져옵니다.
+        sp500_data, moodys_data = get_tab5_financial_data()
         
         # --- 1층: 거시 신용 스프레드 및 S&P 500 나란히 배치 ---
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("#### 📉 무디스 BAA 회사채 신용 스프레드 (최근 5년)")
-            if not fred_data["무디스 BAA 회사채 스프레드"].empty:
-                s = fred_data["무디스 BAA 회사채 스프레드"]
+            if not moodys_data.empty:
+                s = moodys_data
                 f_val, l_val = s.iloc[0], s.iloc[-1]
                 st.write(f"🔹 시작: {f_val:.2f}%p ➔ 최신: {l_val:.2f}%p (변동 폭: **{l_val-f_val:+.2f}%p**)")
                 st.caption("※ 높을수록 글로벌 기업들의 자금 조달 리스크(부도 위험)가 커짐을 의미합니다.")
@@ -823,8 +856,8 @@ with tab5:
                 
         with col2:
             st.markdown("#### 🇺🇸 미국 S&P 500 주가지수 (최근 1년)")
-            if not yf_data["S&P 500 지수"].empty:
-                s = yf_data["S&P 500 지수"]
+            if not sp500_data.empty:
+                s = sp500_data
                 f_val, l_val = s.iloc[0], s.iloc[-1]
                 chg = ((l_val - f_val) / f_val) * 100
                 st.write(f"🔹 시작: {f_val:,.1f} ➔ 최신: {l_val:,.1f} (증감률: **{chg:+.1f}%**)")
@@ -843,7 +876,6 @@ with tab5:
         st.markdown("### 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스")
         st.caption("※ 아래 표는 무디스 및 S&P가 공식 갱신한 바이어별 최신 장기(Long-Term) 신용등급과 실시간 증시 데이터를 결합한 리스크 관리 보드입니다.")
         
-        # 💡 이미지 자료를 기반으로 한 하드코딩 데이터 매트릭스 구축
         matrix_rows = [
             {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2", "S&P 등급 (LT)": "AA"},
             {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2", "S&P 등급 (LT)": "A"},
@@ -859,19 +891,12 @@ with tab5:
         ]
         df_matrix = pd.DataFrame(matrix_rows)
         
-        # 실시간 야후 파이낸스 주가 데이터 결합 작업
         stock_map = get_all_buyers_matrix_stock()
         df_matrix["현재 주가 (USD)"] = df_matrix["BUYER (고객사)"].map(lambda x: stock_map.get(x, {}).get("주가", "N/A"))
         df_matrix["최근 1년 변동률"] = df_matrix["BUYER (고객사)"].map(lambda x: stock_map.get(x, {}).get("변동률", "-"))
         
-        # 스트림릿의 세련된 대화형 데이터프레임으로 출력 (인덱스 숨김 처리)
-        st.dataframe(
-            df_matrix, 
-            use_container_width=True, 
-            hide_index=True
-        )
+        st.dataframe(df_matrix, use_container_width=True, hide_index=True)
         
-        # 범례 가이드 블록 추가
         st.info("💡 **신용등급 가이드:** 투자적격등급(Moody's Baa3 이상 / S&P BBB- 이상)의 바이어는 상대적으로 안정적인 대금 회수가 가능하나, 투기등급(B 또는 BB 계열 이하)에 속한 바이어는 신용 스프레드 추이를 상시 모니터링하여 미수금 한도를 선제적으로 관리해야 합니다.")
             
     except Exception as e:
