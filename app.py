@@ -750,3 +750,20 @@ with tab4:
 
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
+
+        # ==========================================
+# [Tab 5] 🔗 한솔 BI 포털 연동
+# ==========================================
+with tab5:
+    st.subheader("📊 한솔 BI 포털 시스템 연동")
+    st.caption("아래 버튼을 클릭하시면 한솔 BI 포털 분석 화면으로 바로 이동합니다.")
+    
+    # 깔끔하고 큰 링크 버튼 생성
+    st.link_button(
+        "🚀 한솔 BI 포털 바로가기 (새 창에서 열기)",
+        "https://biportal.hansoll.com/Common/BIReport_Popup/MjIzMjIzNTc3",
+        use_container_width=True
+    )
+    
+    # 안내 메시지 박스
+    st.info("💡 사내 보안 정책 및 방화벽(X-Frame-Options)에 따라 사내 시스템 화면을 대시보드 내부에 직접 삽입하는 것은 차단될 수 있습니다. 따라서 위 버튼을 눌러 새 창에서 안전하게 확인하시는 방식이 가장 안정적입니다.")
