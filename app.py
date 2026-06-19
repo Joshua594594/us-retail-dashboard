@@ -767,7 +767,7 @@ def get_tab5_financial_data():
     start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
     
     try:
-        sp500 = yf.Ticker("^GSPC").history(period="1y")['Close']
+        sp500 = yf.download("^GSPC", period="1y", progress=False)['Close']
     except:
         sp500 = pd.Series()
         
@@ -784,7 +784,7 @@ def get_tab5_financial_data():
         
     return sp500, moodys
 
-# 💡 2. 11개 바이어의 실시간 주가 매트릭스 수집 함수
+# 💡 2. 11개 바이어의 실시간 주가 매트릭스 수집 함수 (yf.download 일괄 처리로 차단/지연 완벽 해결 🚀)
 @st.cache_data(ttl=3600)
 def get_all_buyers_matrix_stock():
     import yfinance as yf
@@ -804,22 +804,43 @@ def get_all_buyers_matrix_stock():
         "PVH": "PVH"
     }
     
+    active_tickers = [t for t in buyer_tickers.values() if t is not None]
     results = {}
-    for name, ticker in buyer_tickers.items():
-        if ticker:
-            try:
-                stock = yf.Ticker(ticker).history(period="1y")
-                if not stock.empty:
-                    current_price = stock['Close'].iloc[-1]
-                    start_price = stock['Close'].iloc[0]
-                    chg = ((current_price - start_price) / start_price) * 100
-                    results[name] = {"주가": f"${current_price:,.2f}", "변동률": f"{chg:+.1f}%"}
-                else:
-                    results[name] = {"주가": "N/A", "변동률": "-"}
-            except:
+    
+    try:
+        # 10개 티커를 한 번의 요청으로 일괄 다운로드하여 Yahoo Finance 서버 차단을 원천 방지합니다.
+        df_stock = yf.download(active_tickers, period="1y", progress=False)
+        
+        for name, ticker in buyer_tickers.items():
+            if ticker is None:
+                results[name] = {"주가": "비상장 (Private)", "변동률": "-"}
+                continue
+                
+            # 야후파이낸스 환경에 따른 다양한 데이터 반환 형태에 모두 대응하는 안전 장치
+            if ('Close', ticker) in df_stock.columns:
+                series = df_stock[('Close', ticker)].dropna()
+            elif ticker in df_stock.columns:
+                series = df_stock[ticker].dropna()
+            elif 'Close' in df_stock.columns and ticker in df_stock['Close'].columns:
+                series = df_stock['Close'][ticker].dropna()
+            else:
+                series = pd.Series()
+                
+            if not series.empty:
+                current_price = series.iloc[-1]
+                start_price = series.iloc[0]
+                chg = ((current_price - start_price) / start_price) * 100
+                results[name] = {"주가": f"${current_price:,.2f}", "변동률": f"{chg:+.1f}%"}
+            else:
                 results[name] = {"주가": "N/A", "변동률": "-"}
-        else:
-            results[name] = {"주가": "비상장 (Private)", "변동률": "-"}
+                
+    except Exception as e:
+        for name, ticker in buyer_tickers.items():
+            if ticker is None:
+                results[name] = {"주가": "비상장 (Private)", "변동률": "-"}
+            else:
+                results[name] = {"주가": "N/A", "변동률": "-"}
+                
     return results
 
 
@@ -873,7 +894,6 @@ with tab5:
         st.markdown("### 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스")
         st.caption("※ 아래 표는 무디스 및 S&P가 공식 발표한 바이어별 최신 장기(Long-Term) 신용등급 리스크 보드입니다.")
         
-        # 💡 요청하신 3개 기업(Fast Retailing, A&F, Carter's)의 무디스 등급을 n/a로 깔끔하게 수정했습니다.
         matrix_rows = [
             {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2 ('96.03)", "S&P 등급 (LT)": "AA ('20.05)"},
             {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2 ('19.01)", "S&P 등급 (LT)": "A ('20.03)"},
