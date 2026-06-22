@@ -22,18 +22,19 @@ with tab1:
         import time
         import pandas as pd
         
+        # 💡 데이터 지연을 일으키던 3가지 카테고리의 티커 오타를 공식 코드로 완벽 교정했습니다!
         series_map = {
             "Total Retail Trade": "RSAFS",
             "Nonstore Retailers": "RSNSR",
             "Motor Vehicle and Parts Dealers": "RSMVPD",
             "Furniture and Home Furnishings Stores": "RSFHFS",
-            "Electronics and Appliance Stores": "RSECAFS",
-            "Building Material and Garden Equipment and Supplies Dealers": "RSBMGESD",
+            "Electronics and Appliance Stores": "RSEAS", # 👈 교정 완료
+            "Building Material and Garden Equipment and Supplies Dealers": "RSBMGEDS", # 👈 교정 완료
             "Food and Beverage Stores": "RSFDS",
             "Health and Personal Care Stores": "RSHPCS",
             "Gasoline Stations": "RSGASS",
             "Clothing and Clothing Accessories Stores": "RSCCAS",
-            "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBKS",
+            "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBMS", # 👈 교정 완료
             "General Merchandise Stores": "RSGMS",
             "Miscellaneous Store Retailers": "RSMSR"
         }
@@ -96,7 +97,6 @@ with tab1:
             
             ytd_growth = ((sum_curr / sum_prev) - 1) * 100
             
-            # 💡 Offline을 리스트의 맨 마지막 순서로 배치했습니다!
             exact_14_order = [
                 "Total Retail Trade", 
                 "Nonstore Retailers",
@@ -111,14 +111,13 @@ with tab1:
                 "Health and Personal Care Stores",
                 "Gasoline Stations", 
                 "Miscellaneous Store Retailers",
-                "Offline"  # 👈 맨 마지막으로 이동
+                "Offline"
             ]
             
             ytd_growth = ytd_growth.reindex(exact_14_order).fillna(0).reset_index()
             ytd_growth.columns = ['Category', 'Growth']
             
             ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=exact_14_order, ordered=True)
-            # Plotly 수평 바 차트는 밑에서부터 쌓이기 때문에 역순 정렬을 해줍니다.
             ytd_growth = ytd_growth.sort_values('Category', ascending=False)
             
             colors = ['#CC0000' if val < 0 else '#0070C0' for val in ytd_growth['Growth']]
@@ -150,7 +149,6 @@ with tab1:
                 plot_bgcolor='white', height=600, 
                 margin=dict(l=350, r=50, t=30, b=0), 
                 xaxis=dict(showgrid=True, gridcolor='lightgray'),
-                # 차트 축도 설정한 순서대로 완벽히 정렬되도록 고정
                 yaxis=dict(categoryorder='array', categoryarray=exact_14_order[::-1], automargin=True)
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -162,7 +160,6 @@ with tab1:
             yoy_df = df_pivot_table.pct_change(periods=12) * 100
             table_df = yoy_df.tail(12).T
             
-            # 아래 표 데이터도 Offline이 맨 마지막 줄에 오도록 고정
             table_df = table_df.reindex(exact_14_order)
             
             formatted_cols = [f"'{str(d.year)[-2:]} / {d.month}" for d in table_df.columns]
@@ -175,7 +172,6 @@ with tab1:
 
             styled_table = table_df.style.apply(highlight_clothing, axis=1).format("{:.1f}%", na_rep="-")
             
-            # 💡 아래 코드를 그대로 복사해서 넣어주세요
             st.dataframe(
                 styled_table, 
                 use_container_width=True, 
