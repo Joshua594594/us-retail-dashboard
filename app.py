@@ -13,7 +13,7 @@ st.title("📊 US Market & Trade & Company Dashboard")
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가", "🛡️ 바이어 신용등급"])
 
 # ==========================================
-# [Tab 1] 미국 소매 판매 현황 (Offline 맨 아래로 정렬 🚀)
+# [Tab 1] 미국 소매 판매 현황 (최종 교정 완료판 🚀)
 # ==========================================
 with tab1:
     @st.cache_data(ttl=3600)
@@ -22,19 +22,19 @@ with tab1:
         import time
         import pandas as pd
         
-        # 💡 데이터 지연을 일으키던 3가지 카테고리의 티커 오타를 공식 코드로 완벽 교정했습니다!
+        # 💡 지연을 유발하던 두 지표의 공식 티커를 완벽하게 교정했습니다!
         series_map = {
             "Total Retail Trade": "RSAFS",
             "Nonstore Retailers": "RSNSR",
             "Motor Vehicle and Parts Dealers": "RSMVPD",
             "Furniture and Home Furnishings Stores": "RSFHFS",
-            "Electronics and Appliance Stores": "RSEAS", # 👈 교정 완료
-            "Building Material and Garden Equipment and Supplies Dealers": "RSBMGEDS", # 👈 교정 완료
-            "Food and Beverage Stores": "RSFDS",
+            "Electronics and Appliance Stores": "RSEAS", 
+            "Building Material and Garden Equipment and Supplies Dealers": "RSBMGESD", # 👈 ESD 순서로 교정 완료!
+            "Food and Beverage Stores": "RSDBS", # 👈 RSFDS가 아닌 RSDBS가 진짜 속보치 코드!
             "Health and Personal Care Stores": "RSHPCS",
             "Gasoline Stations": "RSGASS",
             "Clothing and Clothing Accessories Stores": "RSCCAS",
-            "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBMS", # 👈 교정 완료
+            "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBMS", 
             "General Merchandise Stores": "RSGMS",
             "Miscellaneous Store Retailers": "RSMSR"
         }
