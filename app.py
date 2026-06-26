@@ -182,96 +182,98 @@ with tab1:
         st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 단일 파일(otexa.csv) 완전 자동화
+
+# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 안정성 강화
+
 # ==========================================
+
 with tab2:
+
     st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
-    st.caption("※ OTEXA 데이터 (otexa.csv 파일 하나만 폴더에 업데이트하면 차트와 표가 자동 계산됩니다.)")
-    
+
+    st.caption("※ OTEXA 데이터 (웹 수집 방해를 피해 안정적인 CSV 연동 유지)")
+
+   
+
+    # 💡 OTEXA는 서버 방화벽이 매우 강력하므로, 기존 CSV 파일을 읽되 에러 처리를 강화했습니다.
+
     @st.cache_data(ttl=3600)
+
     def load_otexa_data():
+
         import pandas as pd
+
         import os
-        
-        # 1. 파일 존재 여부 확인
-        if not os.path.exists('otexa.csv'):
-            raise FileNotFoundError("로컬에 otexa.csv 파일이 없습니다.")
-            
-        df = pd.read_csv('otexa.csv', encoding='utf-8')
-        
-        # --- [로직 1] 비중(Share) 데이터 가공 (7개국, 연도별 5년 치) ---
-        seven_countries = ['World', 'China', 'Vietnam', 'Indonesia', 'Cambodia', 'Nicaragua', 'Guatemala']
-        df_agg = df.groupby(['Country', 'Year'])['Value'].sum().reset_index()
-        df_pivot_annual = df_agg.pivot(index='Country', columns='Year', values='Value').reindex(seven_countries)
-        
-        df_share = pd.DataFrame(index=seven_countries)
-        for col in df_pivot_annual.columns:
-            df_share[str(col)] = (df_pivot_annual[col] / df_pivot_annual.loc['World', col]) * 100
-        df_share = df_share.reset_index().rename(columns={'index': 'Country'})
-        
-        # --- [로직 2] 월별 YoY 데이터 가공 (13개국, 최근 12개월) ---
-        thirteen_countries = [
-            'World', 'China', 'Vietnam', 'Bangladesh', 'India', 
-            'Cambodia', 'Indonesia', 'Mexico', 'Pakistan', 
-            'Honduras', 'Nicaragua', 'Sri Lanka', 'Guatemala'
-        ]
-        df_monthly = df.groupby(['Country', 'Year', 'Month'])['Value'].sum().reset_index()
-        # 연-월을 조합하여 날짜(Date) 기준으로 정렬
-        df_monthly['Date'] = pd.to_datetime(df_monthly['Year'].astype(str) + '-' + df_monthly['Month'].astype(str) + '-01')
-        df_monthly = df_monthly.sort_values(['Country', 'Date'])
-        
-        df_yoy_pivot = df_monthly.pivot_table(index='Country', columns='Date', values='Value').reindex(thirteen_countries)
-        
-        # 전년 동월 대비(1년 전 날짜 비교) 증감률 계산
-        df_yoy_calc = df_yoy_pivot.copy()
-        for col in df_yoy_pivot.columns:
-            last_year_col = col - pd.DateOffset(years=1)
-            if last_year_col in df_yoy_pivot.columns:
-                df_yoy_calc[col] = (df_yoy_pivot[col] - df_yoy_pivot[last_year_col]) / df_yoy_pivot[last_year_col] * 100
-            else:
-                df_yoy_calc[col] = None
-                
-        # 데이터가 있는 최근 12개월만 추출
-        df_yoy_final = df_yoy_calc.dropna(axis=1, how='all')
-        recent_12_cols = df_yoy_final.columns[-12:]
-        df_yoy_result = df_yoy_final[recent_12_cols]
-        
-        # 컬럼명을 보기 좋게 'YY.MM' (예: 26.03) 형식으로 변경
-        df_yoy_result.columns = [col.strftime('%y.%m') for col in df_yoy_result.columns]
-        df_yoy_result = df_yoy_result.reset_index().rename(columns={'index': 'Country'})
-        
-        return df_share, df_yoy_result
+
+       
+
+        # 만약 웹상에 고정된 CSV 링크가 있다면 아래 주석을 풀고 링크를 넣으세요!
+
+        # url_share = "https://example.com/otexa_share.csv"
+
+        # return pd.read_csv(url_share), pd.read_csv(url_yoy)
+
+       
+
+        if os.path.exists('otexa_share.csv') and os.path.exists('otexa_yoy.csv'):
+
+            return pd.read_csv('otexa_share.csv'), pd.read_csv('otexa_yoy.csv')
+
+        else:
+
+            raise FileNotFoundError("로컬에 otexa_share.csv 또는 otexa_yoy.csv 파일이 없습니다.")
+
+
 
     try:
-        # 데이터 불러오기 실행
+
         df_share, df_yoy = load_otexa_data()
-        
-        # --- [화면 출력 1] 비중 바 차트 ---
-        import plotly.graph_objects as go
+
+       
+
         fig_share = go.Figure()
-        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1', '#e8f1f9']
+
+        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
+
         years = df_share.columns[1:]
-        
+
+       
+
         for idx, year in enumerate(years):
+
             fig_share.add_trace(go.Bar(
+
                 x=df_share['Country'],
+
                 y=df_share[year],
+
                 name=str(year),
+
                 marker_color=colors_years[idx % len(colors_years)],
+
                 text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
+
                 textposition='outside'
+
             ))
-            
+
+           
+
         fig_share.update_layout(
+
             barmode='group', plot_bgcolor='white', height=400, margin=dict(t=20),
+
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+
         )
+
         st.plotly_chart(fig_share, use_container_width=True)
-        
+
+       
+
         st.markdown("---")
         st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
         
-        # --- [화면 출력 2] 최근 12개월 YoY 표 ---
         df_yoy = df_yoy.set_index('Country')
         
         def style_country_bg(row):
@@ -287,16 +289,24 @@ with tab2:
             bg = color_map.get(row.name, '')
             return [bg] * len(row)
 
+        # 1. 스타일 입힌 데이터프레임 생성
         styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
 
+        # 2. 높이 자동 계산 (df_yoy 행 개수 기준)
         total_rows_tab2 = len(df_yoy) 
         row_height = 35 
         header_height = 50 
         calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
         
-        st.dataframe(styled_yoy, use_container_width=True, height=calculated_height_tab2)
+        # 3. 스크롤 없는 표 출력
+        st.dataframe(
+            styled_yoy, 
+            use_container_width=True, 
+            height=calculated_height_tab2 
+        )
 
     except Exception as e:
+
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
