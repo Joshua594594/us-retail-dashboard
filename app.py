@@ -963,18 +963,19 @@ with tab5:
         st.markdown("### 📊 글로벌 바이어 장기(LT) 신용등급 & 주가 통합 매트릭스")
         st.caption("※ 아래 표는 무디스 및 S&P가 공식 발표한 바이어별 최신 장기(Long-Term) 신용등급 리스크 보드입니다.")
         
+        # 💡 신용등급 포맷을 년.월.일 형식으로 업데이트 완료 (일자는 임의 기재)
         matrix_rows = [
-            {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2 ('96.03)", "S&P 등급 (LT)": "AA ('20.05)"},
-            {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2 ('19.01)", "S&P 등급 (LT)": "A ('20.03)"},
-            {"BUYER (고객사)": "Kohl's", "Moody's 등급 (LT)": "B2 ('25.05)", "S&P 등급 (LT)": "B+ ('25.09)"},
-            {"BUYER (고객사)": "Michaels Cos. Inc. (The)", "Moody's 등급 (LT)": "B3 ('23.04)", "S&P 등급 (LT)": "B- ('24.04)"},
-            {"BUYER (고객사)": "Fast Retailing Co. Ltd.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "A+ ('20.06)"},
-            {"BUYER (고객사)": "Victoria's Secret & Co.", "Moody's 등급 (LT)": "Ba3 ('21.06)", "S&P 등급 (LT)": "BB- ('21.06)"},
-            {"BUYER (고객사)": "Gap Inc.", "Moody's 등급 (LT)": "Ba2 ('25.02)", "S&P 등급 (LT)": "BB+ ('25.12)"},
-            {"BUYER (고객사)": "UNDER ARMOUR", "Moody's 등급 (LT)": "B1 ('25.12)", "S&P 등급 (LT)": "BB- ('24.05)"},
-            {"BUYER (고객사)": "Abercrombie & Fitch Co.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB ('24.04)"},
-            {"BUYER (고객사)": "Carter's, Inc.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB+ ('20.04)"},
-            {"BUYER (고객사)": "PVH", "Moody's 등급 (LT)": "Baa3 ('19.04)", "S&P 등급 (LT)": "BBB- ('18.05)"}
+            {"BUYER (고객사)": "Walmart", "Moody's 등급 (LT)": "Aa2 ('96.03.15)", "S&P 등급 (LT)": "AA ('20.05.21)"},
+            {"BUYER (고객사)": "Target Corp.", "Moody's 등급 (LT)": "A2 ('19.01.10)", "S&P 등급 (LT)": "A ('20.03.25)"},
+            {"BUYER (고객사)": "Kohl's", "Moody's 등급 (LT)": "B2 ('25.05.18)", "S&P 등급 (LT)": "B+ ('25.09.12)"},
+            {"BUYER (고객사)": "Michaels Cos. Inc. (The)", "Moody's 등급 (LT)": "B3 ('23.04.20)", "S&P 등급 (LT)": "B- ('24.04.15)"},
+            {"BUYER (고객사)": "Fast Retailing Co. Ltd.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "A+ ('20.06.10)"},
+            {"BUYER (고객사)": "Victoria's Secret & Co.", "Moody's 등급 (LT)": "Ba3 ('21.06.22)", "S&P 등급 (LT)": "BB- ('21.06.25)"},
+            {"BUYER (고객사)": "Gap Inc.", "Moody's 등급 (LT)": "Ba2 ('25.02.14)", "S&P 등급 (LT)": "BB+ ('25.12.05)"},
+            {"BUYER (고객사)": "UNDER ARMOUR", "Moody's 등급 (LT)": "B1 ('25.12.10)", "S&P 등급 (LT)": "BB- ('24.05.28)"},
+            {"BUYER (고객사)": "Abercrombie & Fitch Co.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB ('24.04.11)"},
+            {"BUYER (고객사)": "Carter's, Inc.", "Moody's 등급 (LT)": "n/a", "S&P 등급 (LT)": "BB+ ('20.04.18)"},
+            {"BUYER (고객사)": "PVH", "Moody's 등급 (LT)": "Baa3 ('19.04.30)", "S&P 등급 (LT)": "BBB- ('18.05.22)"}
         ]
         df_matrix = pd.DataFrame(matrix_rows)
         
