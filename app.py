@@ -182,86 +182,97 @@ with tab1:
         st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 안정성 강화
+# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 실시간 드래그 업로드 기능 탑재 🚀
 # ==========================================
 with tab2:
-    st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
-    st.caption("※ OTEXA 데이터 (웹 수집 방해를 피해 안정적인 CSV 연동 유지)")
+    st.markdown("### 🚢 미국 의류 수입 국가별 비중 (%)")
+    st.caption("※ OTEXA 데이터 (미 상무부 보안 우회를 위해 매월 발표되는 최신 CSV 파일을 아래에 업로드하면 즉시 대시보드가 갱신됩니다.)")
     
-    # 💡 OTEXA는 서버 방화벽이 매우 강력하므로, 기존 CSV 파일을 읽되 에러 처리를 강화했습니다.
+    # --- 📁 [핵심 추가] 화면에서 즉시 업데이트할 수 있는 파일 업로드 가이드 창 ---
+    col_up1, col_up2 = st.columns(2)
+    with col_up1:
+        uploaded_share = st.file_uploader("📈 국가별 비중(Share) 최신 CSV 드롭", type=["csv"], key="otexa_up_share")
+    with col_up2:
+        uploaded_yoy = st.file_uploader("📉 전년동월대비 증감률(YoY) 최신 CSV 드롭", type=["csv"], key="otexa_up_yoy")
+    
     @st.cache_data(ttl=3600)
-    def load_otexa_data():
+    def load_individual_otexa(file_obj, default_filename):
         import pandas as pd
         import os
-        
-        # 만약 웹상에 고정된 CSV 링크가 있다면 아래 주석을 풀고 링크를 넣으세요!
-        # url_share = "https://example.com/otexa_share.csv" 
-        # return pd.read_csv(url_share), pd.read_csv(url_yoy)
-        
-        if os.path.exists('otexa_share.csv') and os.path.exists('otexa_yoy.csv'):
-            return pd.read_csv('otexa_share.csv'), pd.read_csv('otexa_yoy.csv')
-        else:
-            raise FileNotFoundError("로컬에 otexa_share.csv 또는 otexa_yoy.csv 파일이 없습니다.")
+        # 1. 사용자가 화면에 최신 파일을 드래그해서 올린 경우 해당 파일을 즉시 읽음
+        if file_obj is not None:
+            return pd.read_csv(file_obj)
+        # 2. 올린 파일이 없으면 기존 로컬/깃허브 창고의 기본 파일을 읽음
+        if os.path.exists(default_filename):
+            return pd.read_csv(default_filename)
+        return None
 
     try:
-        df_share, df_yoy = load_otexa_data()
+        # 두 파일을 각각 독립적으로 검사하여 부분 업로드도 지원하도록 안전성 확보
+        df_share = load_individual_otexa(uploaded_share, 'otexa_share.csv')
+        df_yoy = load_individual_otexa(uploaded_yoy, 'otexa_yoy.csv')
         
-        fig_share = go.Figure()
-        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
-        years = df_share.columns[1:] 
-        
-        for idx, year in enumerate(years):
-            fig_share.add_trace(go.Bar(
-                x=df_share['Country'],
-                y=df_share[year],
-                name=str(year),
-                marker_color=colors_years[idx % len(colors_years)],
-                text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
-                textposition='outside'
-            ))
+        if df_share is None or df_yoy is None:
+            st.warning("⚠️ 기본 데이터 파일(otexa_share.csv / otexa_yoy.csv)을 찾을 수 없습니다. 최신 CSV 파일을 위에 업로드해 주세요.")
+        else:
+            # --- 1층: 국가별 비중 차트 그리기 ---
+            import plotly.graph_objects as go
+            fig_share = go.Figure()
+            colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
+            years = df_share.columns[1:] 
             
-        fig_share.update_layout(
-            barmode='group', plot_bgcolor='white', height=400, margin=dict(t=20),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-        )
-        st.plotly_chart(fig_share, use_container_width=True)
-        
-        st.markdown("---")
-        st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
-        
-        df_yoy = df_yoy.set_index('Country')
-        
-        def style_country_bg(row):
-            color_map = {
-                'World': 'background-color: #808080; color: white; font-weight: bold;',
-                'China': 'background-color: #ed7d31; color: white; font-weight: bold;',
-                'Vietnam': 'background-color: #a9d18e; color: black; font-weight: bold;',
-                'Indonesia': 'background-color: #5b9bd5; color: white; font-weight: bold;',
-                'Cambodia': 'background-color: #1f497d; color: white; font-weight: bold;',
-                'Nicaragua': 'background-color: #ff0000; color: white; font-weight: bold;',
-                'Guatemala': 'background-color: #00b050; color: white; font-weight: bold;'
-            }
-            bg = color_map.get(row.name, '')
-            return [bg] * len(row)
+            for idx, year in enumerate(years):
+                fig_share.add_trace(go.Bar(
+                    x=df_share['Country'],
+                    y=df_share[year],
+                    name=str(year),
+                    marker_color=colors_years[idx % len(colors_years)],
+                    text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
+                    textposition='outside'
+                ))
+                
+            fig_share.update_layout(
+                barmode='group', plot_bgcolor='white', height=400, margin=dict(t=20),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig_share, use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("### 📋 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
+            
+            df_yoy = df_yoy.set_index('Country')
+            
+            def style_country_bg(row):
+                color_map = {
+                    'World': 'background-color: #808080; color: white; font-weight: bold;',
+                    'China': 'background-color: #ed7d31; color: white; font-weight: bold;',
+                    'Vietnam': 'background-color: #a9d18e; color: black; font-weight: bold;',
+                    'Indonesia': 'background-color: #5b9bd5; color: white; font-weight: bold;',
+                    'Cambodia': 'background-color: #1f497d; color: white; font-weight: bold;',
+                    'Nicaragua': 'background-color: #ff0000; color: white; font-weight: bold;',
+                    'Guatemala': 'background-color: #00b050; color: white; font-weight: bold;'
+                }
+                bg = color_map.get(row.name, '')
+                return [bg] * len(row)
 
-        # 1. 스타일 입힌 데이터프레임 생성
-        styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
+            # 1. 스타일 입힌 데이터프레임 생성
+            styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
 
-        # 2. 높이 자동 계산 (df_yoy 행 개수 기준)
-        total_rows_tab2 = len(df_yoy) 
-        row_height = 35 
-        header_height = 50 
-        calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
-        
-        # 3. 스크롤 없는 표 출력
-        st.dataframe(
-            styled_yoy, 
-            use_container_width=True, 
-            height=calculated_height_tab2 
-        )
+            # 2. 높이 자동 계산 (df_yoy 행 개수 기준)
+            total_rows_tab2 = len(df_yoy) 
+            row_height = 35 
+            header_height = 50 
+            calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
+            
+            # 3. 스크롤 없는 표 출력
+            st.dataframe(
+                styled_yoy, 
+                use_container_width=True, 
+                height=calculated_height_tab2 
+            )
 
     except Exception as e:
-        st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
+        st.error(f"OTEXA 데이터를 불러오는 중 오류가 발생했습니다. 오류 내용: {e}")
 
 # ==========================================
 # [Tab 3] 글로벌 패션·유통 기업 모니터링 (QoQ 실적 고정 + 국적별 뉴스 타겟 수집)
