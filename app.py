@@ -529,10 +529,10 @@ with tab3:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
 
 # ==========================================
-# [Tab 4] 🌐 거시경제 및 원가 지표 (레이아웃 밸런스 및 깔끔화 완벽판 🚀)
+# [Tab 4] 🌐 거시경제 및 원가 지표 (의류 전용 재고율 완벽 반영판 🚀)
 # ==========================================
 
-# 1. 데이터 수집 함수 (미국 의류 소매판매액 RSCCASN 추가)
+# 1. 데이터 수집 함수 (미국 소매업 재고율을 의류 전용 MRTSIR448USS로 변경)
 @st.cache_data(ttl=3600)
 def get_macro_data_complete_final():
     import pandas as pd
@@ -552,14 +552,14 @@ def get_macro_data_complete_final():
         except:
             yf_data[name] = pd.Series()
             
-    # [B] FRED 데이터 (의류 소매 판매액 추가)
+    # [B] FRED 데이터 (재고율 코드를 의류 매장 전용으로 교체 완료 ⭐️)
     fred_tickers = {
         "미국 실질 GDP": "GDPC1",                 
         "미국 의류 소비자물가지수(CPI)": "CPIAPPSL",  
-        "미국 소매업 재고율": "RETAILIRSA",
+        "미국 의류 소매재고율": "MRTSIR448USS", # 👈 기존 RETAILIRSA에서 의류 전용(MRTSIR448USS)으로 교체!
         "미국 기준금리": "FEDFUNDS",
         "한국 기준금리": "KORINTPA01STSAM",
-        "미국 의류 소매판매액": "RSCCASN" # 👈 균형을 맞출 패션 핵심 지표!
+        "미국 의류 소매판매액": "RSCCASN" 
     }
     fred_data = {}
     for name, ticker in fred_tickers.items():
@@ -705,19 +705,22 @@ with tab4:
         st.markdown("---")
 
         # ----------------------------------------
-        # --- 4층: 📦 패션 소매 재고 및 판매 균형 (밸런스 매칭 🧩) ---
+        # --- 4층: 📦 패션 소매 재고 및 판매 균형 (의류 타겟 지표 반영 완료 🎯) ---
         # ----------------------------------------
         st.markdown("### 📊 미국 의류 소매업 공급망 지표 (최근 5년 트렌드)")
         col7, col8 = st.columns(2)
         
         with col7:
-            st.markdown("#### 📦 미국 소매업 재고율 (Inventory-to-Sales)")
-            if not fred_data["미국 소매업 재고율"].empty:
-                s = fred_data["미국 소매업 재고율"]
+            # 💡 기존 전체 소매업 재고율 문구를 '의류 소매재고율'로 명확하게 튜닝했습니다.
+            st.markdown("#### 📦 미국 의류 소매재고율 (Inventory-to-Sales)")
+            if not fred_data["미국 의류 소매재고율"].empty:
+                s = fred_data["미국 의류 소매재고율"]
                 f_val, l_val = s.iloc[0], s.iloc[-1]
                 chg = ((l_val - f_val) / f_val) * 100
-                st.write(f"🔹 시작: {f_val:.2f} ➔ 최신: {l_val:.2f} (증감률: **{chg:+.1f}%**)")
+                # 개월 치 단위 설명 보강
+                st.write(f"🔹 시작: {f_val:.2f}개월 ➔ 최신: {l_val:.2f}개월 (증감률: **{chg:+.1f}%**)")
                 
+                # 의류 산업 느낌의 세련된 보라/청록색 톤 유지
                 fig_inv = go.Figure(go.Scatter(x=s.index, y=s, fill='tozeroy', line=dict(color='#16A085', width=2)))
                 fig_inv.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}", f"{l_val:.2f}"], textposition=["top right", "top left"], marker=dict(size=8, color='#16A085')))
                 fig_inv.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor='lightgray'), yaxis=dict(showgrid=True, gridcolor='lightgray'))
