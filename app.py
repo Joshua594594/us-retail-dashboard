@@ -182,91 +182,52 @@ with tab1:
         st.error(f"소매 판매 데이터를 처리하는 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-
-# [Tab 2] 미국 의류 수입 현황 (OTEXA) - 안정성 강화
-
+# [Tab 2] 미국 의류 수입 현황 (OTEXA) 
 # ==========================================
-
 with tab2:
-
     st.markdown("### * 미국 의류 수입 국가별 비중 (%)")
-
-    st.caption("※ OTEXA 데이터 (웹 수집 방해를 피해 안정적인 CSV 연동 유지)")
-
-   
-
-    # 💡 OTEXA는 서버 방화벽이 매우 강력하므로, 기존 CSV 파일을 읽되 에러 처리를 강화했습니다.
-
+    st.caption("※ OTEXA 데이터 (ETL 배치 작업을 통해 생성된 최신 파일을 불러옵니다.)")
+    
     @st.cache_data(ttl=3600)
-
     def load_otexa_data():
-
         import pandas as pd
-
         import os
-
-       
-
-        # 만약 웹상에 고정된 CSV 링크가 있다면 아래 주석을 풀고 링크를 넣으세요!
-
-        # url_share = "https://example.com/otexa_share.csv"
-
-        # return pd.read_csv(url_share), pd.read_csv(url_yoy)
-
-       
-
+        
         if os.path.exists('otexa_share.csv') and os.path.exists('otexa_yoy.csv'):
-
             return pd.read_csv('otexa_share.csv'), pd.read_csv('otexa_yoy.csv')
-
         else:
-
-            raise FileNotFoundError("로컬에 otexa_share.csv 또는 otexa_yoy.csv 파일이 없습니다.")
-
-
+            raise FileNotFoundError("로컬에 otexa_share.csv 또는 otexa_yoy.csv 파일이 없습니다. ETL 스크립트를 먼저 실행해주세요.")
 
     try:
-
         df_share, df_yoy = load_otexa_data()
-
-       
-
+        
+        # --- [1] 국가별 비중 차트 ---
+        import plotly.graph_objects as go
         fig_share = go.Figure()
-
-        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1']
-
+        colors_years = ['#1f497d', '#2e75b6', '#5b9bd5', '#9dc3e6', '#c6d9f1', '#e8f1f9']
         years = df_share.columns[1:]
-
-       
-
-for idx, year in enumerate(years):
+        
+        for idx, year in enumerate(years):
             fig_share.add_trace(go.Bar(
                 x=df_share['Country'],
                 y=df_share[year],
                 name=str(year),
                 marker_color=colors_years[idx % len(colors_years)],
-                # 💡 아래 줄의 조건을 수정하여 모든 막대에 값이 나오게 바꿨습니다!
+                # 💡 모든 연도에 % 값이 표시되도록 완벽하게 수정된 부분입니다!
                 text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) else ""),
                 textposition='outside'
             ))
-
-           
-
+            
         fig_share.update_layout(
-
             barmode='group', plot_bgcolor='white', height=400, margin=dict(t=20),
-
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-
         )
-
         st.plotly_chart(fig_share, use_container_width=True)
-
-       
-
+        
         st.markdown("---")
         st.markdown("### * 미국 의류 수입 국가별 전년 동월대비 증감률(%)")
         
+        # --- [2] 최근 12개월 YoY 표 ---
         df_yoy = df_yoy.set_index('Country')
         
         def style_country_bg(row):
@@ -282,24 +243,16 @@ for idx, year in enumerate(years):
             bg = color_map.get(row.name, '')
             return [bg] * len(row)
 
-        # 1. 스타일 입힌 데이터프레임 생성
         styled_yoy = df_yoy.style.format("{:.1f}%", na_rep="-").apply(style_country_bg, axis=1)
 
-        # 2. 높이 자동 계산 (df_yoy 행 개수 기준)
         total_rows_tab2 = len(df_yoy) 
         row_height = 35 
         header_height = 50 
         calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
         
-        # 3. 스크롤 없는 표 출력
-        st.dataframe(
-            styled_yoy, 
-            use_container_width=True, 
-            height=calculated_height_tab2 
-        )
+        st.dataframe(styled_yoy, use_container_width=True, height=calculated_height_tab2)
 
     except Exception as e:
-
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
 
 # ==========================================
