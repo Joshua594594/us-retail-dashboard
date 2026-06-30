@@ -239,22 +239,15 @@ with tab2:
 
        
 
-        for idx, year in enumerate(years):
-
+for idx, year in enumerate(years):
             fig_share.add_trace(go.Bar(
-
                 x=df_share['Country'],
-
                 y=df_share[year],
-
                 name=str(year),
-
                 marker_color=colors_years[idx % len(colors_years)],
-
-                text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) and (idx == 0 or idx == len(years)-1) else ""),
-
+                # 💡 아래 줄의 조건을 수정하여 모든 막대에 값이 나오게 바꿨습니다!
+                text=df_share[year].apply(lambda x: f"{x:.1f}%" if pd.notnull(x) else ""),
                 textposition='outside'
-
             ))
 
            
