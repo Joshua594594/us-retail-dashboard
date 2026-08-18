@@ -496,9 +496,14 @@ with tab3:
     try:
         info, hist, financials_df, final_news = get_complete_company_data(ticker_symbol, selected_company, search_keyword)
 
+# 💡 [수정됨] yfinance가 최신 주가를 NaN(결측치)으로 내려주는 버그 방지
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
-        if current_price == 0 and not hist.empty:
-            current_price = hist['Close'].iloc[-1]
+        if (current_price == 0 or pd.isna(current_price)) and not hist.empty:
+            valid_closes = hist['Close'].dropna() # 비어있는 NaN 데이터를 싹 지움
+            if not valid_closes.empty:
+                current_price = valid_closes.iloc[-1] # 남은 것 중 가장 최신 정상 주가
+            else:
+                current_price = 0
 
         currency = info.get('currency', 'USD')
 
