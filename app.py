@@ -3,168 +3,85 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import yfinance as yf
-from datetime import datetime
 
 # ==========================================
 # 1. 페이지 설정
 # ==========================================
-st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
 
 # ==========================================
-# 디자인 시스템 (첨부 3개 HTML 대시보드 톤 통일: 딥블루 헤더 그라디언트,
-# Noto Sans KR/Inter 폰트, 카드형 패널, 컬러 KPI 카드, 상단 페이지탭)
+# 디자인 시스템 (최소한의 톤 통일만: 카드형 패널, 딥블루 탭, 테이블 헤더 색상)
+# 장식적인 KPI 카드/아이콘/뱃지는 요청에 따라 제거했습니다.
 # ==========================================
 DESIGN_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
 
 :root{
-  --blue:#2563EB; --blue-d:#1E3A8A; --blue-l:#EFF6FF; --blue-m:#DBEAFE;
-  --green:#059669; --green-l:#ECFDF5;
-  --red:#DC2626; --red-l:#FEF2F2;
-  --amber:#D97706;
-  --gray1:#F8FAFC; --gray2:#F1F5F9; --gray3:#E2E8F0;
-  --gray4:#94A3B8; --gray5:#64748B; --gray6:#334155;
-  --text:#0F172A; --white:#FFFFFF;
+  --blue:#2563EB; --blue-d:#1E3A8A;
+  --green:#059669; --red:#DC2626; --amber:#D97706;
+  --gray3:#E2E8F0; --gray5:#64748B; --gray1:#F8FAFC;
+  --text:#0F172A;
 }
 
-html, body, [class*="css"], .stApp, .stMarkdown, p, span, div {
-  font-family:'Inter','Noto Sans KR',sans-serif;
-}
-
+html, body, [class*="css"] { font-family:'Noto Sans KR',sans-serif; }
 .stApp{ background:var(--gray1); }
 #MainMenu{visibility:hidden;} footer{visibility:hidden;}
-.block-container{ padding-top:1.1rem; padding-bottom:2.5rem; max-width:1400px; }
 
-/* ---------- 상단 그라디언트 헤더 (매출취합보고 g-header 스타일) ---------- */
-.g-header{
-  background:linear-gradient(120deg,#1E3A8A 0%,#2563EB 100%);
-  color:#fff; padding:18px 28px; border-radius:12px; margin-bottom:16px;
-  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
-  box-shadow:0 4px 14px rgba(30,58,138,.25);
-}
-.g-header .title-block h1{ font-size:20px; font-weight:700; letter-spacing:-.3px; margin:0; }
-.g-header .title-block .sub{ font-size:11.5px; opacity:.78; margin-top:3px; }
-.g-header .live{
-  display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.14);
-  color:#fff; padding:5px 12px; border-radius:20px; font-size:11.5px; font-weight:600;
-}
-.g-header .live::before{ content:"\\25CF"; color:#4ADE80; font-size:9px; }
+/* 와이드 화면 폭을 그대로 사용 (임의로 좁히지 않음) */
+.block-container{ padding-top:1.2rem; padding-bottom:2.5rem; max-width:100%; }
 
-/* ---------- st.tabs를 딥블루 page-tabs 형태로 재도장 ---------- */
+/* 탭을 딥블루 톤으로 */
 .stTabs [data-baseweb="tab-list"]{
-  background:var(--blue-d); padding:5px 8px; border-radius:10px; gap:2px; margin-bottom:14px;
+  background:var(--blue-d); padding:5px 8px; border-radius:8px; gap:2px; margin-bottom:14px;
 }
 .stTabs [data-baseweb="tab"]{
-  color:rgba(255,255,255,.58); font-weight:600; font-size:13px;
-  padding:10px 18px; border-radius:7px 7px 0 0; border:none !important;
+  color:rgba(255,255,255,.6); font-weight:600; font-size:13px;
+  padding:9px 16px; border-radius:6px 6px 0 0; border:none !important;
 }
 .stTabs [data-baseweb="tab"]:hover{ color:#fff; }
 .stTabs [aria-selected="true"]{
   color:#fff !important; background:rgba(255,255,255,.08) !important;
   border-bottom:3px solid #60A5FA !important;
 }
-.stTabs [data-baseweb="tab-highlight"]{ background:transparent; }
-.stTabs [data-baseweb="tab-border"]{ display:none; }
 
-/* ---------- 카드형 컨테이너 (border=True 컨테이너에 자동 적용) ---------- */
+/* 차트/표를 감싸는 카드 패널 (장식 없이 테두리+그림자만) */
 div[data-testid="stVerticalBlockBorderWrapper"]{
-  background:#fff; border:1px solid var(--gray3) !important; border-radius:11px !important;
-  box-shadow:0 1px 5px rgba(30,60,120,.06); padding:6px 4px;
+  background:#fff; border:1px solid var(--gray3) !important; border-radius:10px !important;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
 }
 
-/* 카드 제목 라벨 (Factory Scorecard의 .ctitle) */
+/* 섹션 소제목 (아이콘 없이 텍스트만, 좌측 얇은 컬러 바) */
 .ctitle{
-  font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
-  color:var(--gray5); margin:2px 0 12px 6px; display:flex; align-items:center; gap:7px;
+  font-size:13px; font-weight:700; color:var(--text);
+  margin:2px 0 10px 0; padding-left:9px; border-left:3px solid var(--blue);
 }
-.ctitle::before{ content:''; display:inline-block; width:3px; height:12px; background:var(--blue); border-radius:2px; }
-.ctitle.accent-green::before{ background:var(--green); }
-.ctitle.accent-amber::before{ background:var(--amber); }
-.ctitle.accent-red::before{ background:var(--red); }
 
-/* ---------- KPI 카드 (매출취합보고 .kpi-card 스타일) ---------- */
-.kpi-card{
-  background:#fff; border-radius:9px; padding:15px 18px; border:1px solid var(--gray3);
-  box-shadow:0 1px 4px rgba(0,0,0,.06); position:relative; overflow:hidden; height:100%;
-}
-.kpi-card::before{ content:''; position:absolute; top:0; left:0; right:0; height:3px; }
-.kpi-card.blue::before{ background:var(--blue); }
-.kpi-card.green::before{ background:var(--green); }
-.kpi-card.amber::before{ background:var(--amber); }
-.kpi-card.red::before{ background:var(--red); }
-.kpi-label{ font-size:10px; font-weight:700; color:var(--gray4); letter-spacing:.5px; text-transform:uppercase; margin-bottom:6px; }
-.kpi-value{ font-size:24px; font-weight:800; letter-spacing:-1px; color:var(--text); }
-.kpi-unit{ font-size:12px; font-weight:500; color:var(--gray5); margin-left:3px; }
-.kpi-delta{ display:inline-flex; align-items:center; gap:3px; font-size:11.5px; font-weight:700; margin-top:8px; }
-.kpi-delta.pos{ color:var(--green); } .kpi-delta.neg{ color:var(--red); } .kpi-delta.flat{ color:var(--gray5); }
-.kpi-sub{ font-size:10.5px; color:var(--gray5); margin-top:4px; }
-
-/* ---------- selectbox / caption 톤 ---------- */
-.stSelectbox label, .stCaption, [data-testid="stCaptionContainer"]{ color:var(--gray5) !important; }
-.stSelectbox > div > div{ border-radius:8px !important; border-color:var(--gray3) !important; }
-
-/* ---------- st.dataframe / pandas Styler 테이블 헤더 딥블루 통일 ---------- */
-[data-testid="stDataFrame"] thead tr th,
-[data-testid="stTable"] thead tr th{
+/* 표 헤더 색상 통일 */
+[data-testid="stDataFrame"] thead tr th{
   background:var(--blue-d) !important; color:#fff !important; font-weight:600 !important;
 }
-[data-testid="stDataFrame"] div, [data-testid="stTable"] div{ font-family:'Inter','Noto Sans KR',sans-serif; }
 
-/* ---------- expander(뉴스) 카드화 ---------- */
-details{ border:1px solid var(--gray3) !important; border-radius:8px !important; background:#fff !important; }
-summary{ font-weight:500 !important; color:var(--text) !important; }
-
-/* ---------- 구분선 ---------- */
-hr{ border-color:var(--gray3) !important; }
-
-/* metric (혹시 남아있는 st.metric 대비) */
+/* st.metric 기본 컴포넌트를 살짝만 카드처럼 */
 [data-testid="stMetric"]{
-  background:#fff; border:1px solid var(--gray3); border-radius:9px; padding:14px 18px;
-  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  background:#fff; border:1px solid var(--gray3); border-radius:8px; padding:12px 16px;
 }
+
+hr{ border-color:var(--gray3) !important; }
 </style>
 """
 st.markdown(DESIGN_CSS, unsafe_allow_html=True)
 
-# 팔레트 (Plotly 차트에 디자인 시스템 색상 통일 적용)
+st.title("📊 US Market & Trade & Company Dashboard")
+
 PALETTE = {
-    "blue": "#2563EB", "blue_d": "#1E3A8A", "blue_l": "#93C5FD",
+    "blue": "#2563EB", "blue_d": "#1E3A8A",
     "green": "#059669", "red": "#DC2626", "amber": "#D97706",
-    "gray": "#94A3B8", "grid": "#E2E8F0",
+    "grid": "#E2E8F0",
 }
 
-def render_header():
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    st.markdown(f"""
-    <div class="g-header">
-        <div class="title-block">
-            <h1>📊 US Market & Trade & Company Dashboard</h1>
-            <div class="sub">한솔섬유 전략기획 · 미국 소매·수입·기업·거시 통합 모니터링</div>
-        </div>
-        <div class="live">LIVE · {now_str} 기준</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def card_title(text, accent=""):
-    cls = f"ctitle {accent}".strip()
-    st.markdown(f'<div class="{cls}">{text}</div>', unsafe_allow_html=True)
-
-def kpi_card(label, value, unit="", delta_text=None, delta_kind="flat", accent="blue", sub=None):
-    delta_html = ""
-    if delta_text:
-        delta_html = f'<div class="kpi-delta {delta_kind}">{delta_text}</div>'
-    sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
-    st.markdown(f"""
-    <div class="kpi-card {accent}">
-        <div class="kpi-label">{label}</div>
-        <div class="kpi-value">{value}<span class="kpi-unit">{unit}</span></div>
-        {delta_html}
-        {sub_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-render_header()
+def card_title(text):
+    st.markdown(f'<div class="ctitle">{text}</div>', unsafe_allow_html=True)
 
 # 2. 탭 생성
 tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
@@ -198,6 +115,7 @@ with tab1:
         FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         all_data = []
+        last_error = None
 
         for cat, ticker in series_map.items():
             for attempt in range(3):
@@ -215,12 +133,15 @@ with tab1:
                         time.sleep(0.2)
                         break
                     else:
+                        last_error = f"{cat}({ticker}) → HTTP {response.status_code}: {response.text[:200]}"
                         time.sleep(2)
-                except Exception:
+                except Exception as ex:
+                    last_error = f"{cat}({ticker}) → {type(ex).__name__}: {ex}"
                     if attempt < 2:
                         time.sleep(2)
 
         if not all_data:
+            st.session_state["_fred_last_error"] = last_error
             return pd.DataFrame()
 
         df = pd.concat(all_data, ignore_index=True)
@@ -237,6 +158,10 @@ with tab1:
 
         if df.empty:
             st.error("FRED 서버에서 데이터를 가져오지 못했습니다.")
+            last_err = st.session_state.get("_fred_last_error")
+            if last_err:
+                st.caption(f"상세 원인: {last_err}")
+            st.caption("※ FRED_API_KEY가 만료/차단되었거나, api.stlouisfed.org로의 네트워크 접근이 막혀 있을 수 있습니다.")
         else:
             latest_date = df['Date'].max()
             current_year = latest_date.year
@@ -249,26 +174,10 @@ with tab1:
             df_prev = df[(df['Date'].dt.year == prev_year) & (df['Date'].dt.month <= max_month)]
             sum_prev = df_prev.groupby('Category')['Sales'].sum()
 
-            ytd_growth_series = ((sum_curr / sum_prev) - 1) * 100
-            total_growth = ytd_growth_series.get("Total Retail Trade", np.nan)
-            clothing_growth = ytd_growth_series.get("Clothing and Clothing Accessories Stores", np.nan)
+            ytd_growth = ((sum_curr / sum_prev) - 1) * 100
 
-            kc1, kc2, kc3 = st.columns(3)
-            with kc1:
-                kpi_card("TOTAL RETAIL TRADE YTD", f"{total_growth:+.1f}" if pd.notnull(total_growth) else "-", "%",
-                         accent="blue", sub=f"{prev_year} vs {current_year}, 1–{max_month}월 누계")
-            with kc2:
-                kpi_card("CLOTHING & ACCESSORIES YTD", f"{clothing_growth:+.1f}" if pd.notnull(clothing_growth) else "-", "%",
-                         delta_text=("▲ 성장" if clothing_growth > 0 else "▼ 둔화") if pd.notnull(clothing_growth) else None,
-                         delta_kind="pos" if (pd.notnull(clothing_growth) and clothing_growth > 0) else "neg",
-                         accent="red", sub="한솔섬유 핵심 카테고리")
-            with kc3:
-                kpi_card("최신 데이터 기준월", latest_date.strftime("%Y-%m"), "",
-                         accent="amber", sub="FRED 월간 소매판매 속보치")
-
-            st.write("")
             with st.container(border=True):
-                card_title(f"미국 소매 카테고리 별 성장률 (1–{max_month}월) {prev_year} vs {current_year} (%)")
+                card_title(f"미국 소매 카테고리 별 성장률 (1-{max_month}월) {prev_year} vs {current_year} (%)")
 
                 exact_14_order = [
                     "Total Retail Trade",
@@ -287,7 +196,7 @@ with tab1:
                     "Offline"
                 ]
 
-                ytd_growth = ytd_growth_series.reindex(exact_14_order).fillna(0).reset_index()
+                ytd_growth = ytd_growth.reindex(exact_14_order).fillna(0).reset_index()
                 ytd_growth.columns = ['Category', 'Growth']
 
                 ytd_growth['Category'] = pd.Categorical(ytd_growth['Category'], categories=exact_14_order, ordered=True)
@@ -319,17 +228,16 @@ with tab1:
 
                 fig.update_layout(
                     plot_bgcolor='white', paper_bgcolor='white',
-                    font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=12),
                     height=600,
                     margin=dict(l=350, r=50, t=10, b=0),
                     xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]),
                     yaxis=dict(categoryorder='array', categoryarray=exact_14_order[::-1], automargin=True)
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
             st.write("")
             with st.container(border=True):
-                card_title("미국 소매 카테고리 별 전년 동월대비 증감률(%)", accent="accent-red")
+                card_title("미국 소매 카테고리 별 전년 동월대비 증감률(%)")
 
                 df_pivot_table = df.pivot(index='Date', columns='Category', values='Sales')
                 yoy_df = df_pivot_table.pct_change(periods=12) * 100
@@ -349,7 +257,7 @@ with tab1:
 
                 st.dataframe(
                     styled_table,
-                    use_container_width=True,
+                    width='stretch',
                     height=len(table_df) * 35 + 50
                 )
 
@@ -393,16 +301,14 @@ with tab2:
 
             fig_share.update_layout(
                 barmode='group', plot_bgcolor='white', paper_bgcolor='white',
-                font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=12),
                 height=400, margin=dict(t=20),
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
-                xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"])
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
             )
-            st.plotly_chart(fig_share, use_container_width=True)
+            st.plotly_chart(fig_share, width='stretch')
 
         st.write("")
         with st.container(border=True):
-            card_title("미국 의류 수입 국가별 전년 동월대비 증감률(%)", accent="accent-amber")
+            card_title("미국 의류 수입 국가별 전년 동월대비 증감률(%)")
 
             df_yoy = df_yoy.set_index('Country')
 
@@ -426,7 +332,7 @@ with tab2:
             header_height = 50
             calculated_height_tab2 = (total_rows_tab2 * row_height) + header_height
 
-            st.dataframe(styled_yoy, use_container_width=True, height=calculated_height_tab2)
+            st.dataframe(styled_yoy, width='stretch', height=calculated_height_tab2)
 
     except Exception as e:
         st.error(f"OTEXA 데이터를 불러올 수 없습니다. 오류 내용: {e}")
@@ -435,6 +341,7 @@ with tab2:
 # [Tab 3] 글로벌 패션·유통 기업 모니터링
 # ==========================================
 with tab3:
+    st.subheader("🏢 요청 기업 실시간 주가 및 정보 모니터링")
 
     @st.cache_data(ttl=600)
     def get_complete_company_data(ticker_symbol, selected_company, search_keyword):
@@ -583,7 +490,6 @@ with tab3:
         "제이에스코퍼레이션": ("194370.KS", "제이에스코퍼레이션")
     }
 
-    card_title("요청 기업 실시간 주가 및 정보 모니터링")
     selected_company = st.selectbox("분석할 기업을 선택하세요", list(companies.keys()))
     ticker_symbol, search_keyword = companies[selected_company]
 
@@ -616,20 +522,11 @@ with tab3:
                 prev_avg = monthly_avg['Close'].iloc[-2]
                 mom_growth = ((latest_avg / prev_avg) - 1) * 100
 
-        st.write("")
-        kc1, kc2 = st.columns(2)
-        with kc1:
-            kpi_card("현재 주가", price_formatted, "", accent="blue", sub=selected_company)
-        with kc2:
-            kpi_card("월간 평균 주가 MoM", f"{mom_growth:+.2f}", "%",
-                     delta_text=("▲ 상승" if mom_growth >= 0 else "▼ 하락"),
-                     delta_kind="pos" if mom_growth >= 0 else "neg",
-                     accent="green" if mom_growth >= 0 else "red",
-                     sub="최근 월간 평균 주가 전월대비")
+        delta_formatted = f"{mom_growth:+.2f}% (최근 월간 평균 주가 전월대비 MoM)"
+        st.metric(label="현재 주가", value=price_formatted, delta=delta_formatted)
 
-        st.write("")
+        st.markdown("### 📈 최근 1년 주가 추세")
         with st.container(border=True):
-            card_title("최근 1년 주가 추세")
             if not hist.empty:
                 fig_trend = go.Figure(go.Scatter(
                     x=hist.index, y=hist['Close'],
@@ -638,20 +535,18 @@ with tab3:
                 ))
                 fig_trend.update_layout(
                     plot_bgcolor='white', paper_bgcolor='white',
-                    font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=12),
                     height=350,
-                    margin=dict(l=50, r=40, t=10, b=30),
+                    margin=dict(l=50, r=40, t=20, b=30),
                     xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]),
                     yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"], tickformat="," if currency != "USD" else ",.2f")
                 )
-                st.plotly_chart(fig_trend, use_container_width=True)
+                st.plotly_chart(fig_trend, width='stretch')
             else:
                 st.info("주가 차트 데이터를 불러올 수 없습니다.")
 
         if not financials_df.empty:
-            st.write("")
+            st.markdown("### 📊 최근 4개 분기 실적 증감률")
             with st.container(border=True):
-                card_title("최근 4개 분기 실적 증감률", accent="accent-green")
                 st.caption("※ 전분기 대비 (QoQ, %)")
 
                 quarters = [str(col).split(' ')[0] for col in financials_df.columns]
@@ -675,28 +570,26 @@ with tab3:
 
                 fig_fin.update_layout(
                     barmode='group', plot_bgcolor='white', paper_bgcolor='white',
-                    font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=12),
                     height=350,
                     margin=dict(l=50, r=40, t=30, b=30),
                     xaxis=dict(type='category'),
                     yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"], title="증감률 (%)"),
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
-                st.plotly_chart(fig_fin, use_container_width=True)
+                st.plotly_chart(fig_fin, width='stretch')
         else:
             st.info("최근 분기 실적 데이터를 공급하지 않거나 야후 금융 API 과부하로 차트가 일시 제한되었습니다.")
 
-        st.write("")
-        with st.container(border=True):
-            card_title(f"{selected_company} 관련 최신 뉴스", accent="accent-amber")
+        st.markdown("---")
+        st.markdown(f"### 📰 {selected_company} 관련 최신 뉴스")
 
-            if final_news:
-                for item in final_news:
-                    with st.expander(item['title']):
-                        st.write(f"**원본 제목:** {item['orig_title']}")
-                        st.write(f"[기사 원문 링크]({item['link']})")
-            else:
-                st.info("현재 해당 기업의 이름이 직접 언급된 최신 뉴스 기사를 찾을 수 없습니다.")
+        if final_news:
+            for item in final_news:
+                with st.expander(item['title']):
+                    st.write(f"**원본 제목:** {item['orig_title']}")
+                    st.write(f"[기사 원문 링크]({item['link']})")
+        else:
+            st.info("현재 해당 기업의 이름이 직접 언급된 최신 뉴스 기사를 찾을 수 없습니다.")
 
     except Exception as e:
         st.error(f"데이터를 처리하는 중 일시적인 오류가 발생했습니다: {e}")
@@ -720,7 +613,7 @@ def get_macro_data_complete_final():
     for name, ticker in yf_tickers.items():
         try:
             yf_data[name] = yf.Ticker(ticker).history(period="1y")['Close']
-        except:
+        except Exception:
             yf_data[name] = pd.Series()
 
     fred_tickers = {
@@ -741,7 +634,7 @@ def get_macro_data_complete_final():
             df['value'] = pd.to_numeric(df['value'], errors='coerce')
             df = df.set_index('date')['value'].dropna()
             fred_data[name] = df[df.index >= start_date]
-        except:
+        except Exception:
             fred_data[name] = pd.Series()
 
     if fred_data["한국 기준금리"].empty:
@@ -760,109 +653,157 @@ def get_macro_data_complete_final():
     return yf_data, fred_data
 
 
-def mini_line_card(title, series_obj, unit_prefix="", unit_suffix="", color=PALETTE["blue"], fmt="{:,.1f}", fill=False):
-    with st.container(border=True):
-        card_title(title)
-        if not series_obj.empty:
-            f_val, l_val = series_obj.iloc[0], series_obj.iloc[-1]
-            chg = ((l_val - f_val) / f_val) * 100 if f_val != 0 else 0
-            delta_kind = "pos" if chg >= 0 else "neg"
-            st.markdown(
-                f'<div style="font-size:12px;color:#334155;margin-bottom:6px;">'
-                f'시작: {unit_prefix}{fmt.format(f_val)}{unit_suffix} &rarr; 최신: {unit_prefix}{fmt.format(l_val)}{unit_suffix} '
-                f'&nbsp;<span class="kpi-delta {delta_kind}" style="margin-top:0;">({chg:+.1f}%)</span></div>',
-                unsafe_allow_html=True
-            )
-            fig = go.Figure(go.Scatter(
-                x=series_obj.index, y=series_obj,
-                fill='tozeroy' if fill else None,
-                line=dict(color=color, width=2)
-            ))
-            fig.add_trace(go.Scatter(
-                x=[series_obj.index[0], series_obj.index[-1]], y=[f_val, l_val],
-                mode='markers+text',
-                text=[f"{unit_prefix}{fmt.format(f_val)}{unit_suffix}", f"{unit_prefix}{fmt.format(l_val)}{unit_suffix}"],
-                textposition=["top right", "top left"],
-                marker=dict(size=8, color=color), showlegend=False
-            ))
-            fig.update_layout(
-                height=260, margin=dict(l=20, r=20, t=10, b=10),
-                plot_bgcolor='white', paper_bgcolor='white',
-                font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=11),
-                showlegend=False,
-                xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]),
-                yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"])
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("데이터를 불러올 수 없습니다.")
-
-
 with tab4:
-    card_title("글로벌 거시경제 및 패션 원가 지표 모니터링")
+    st.subheader("🌐 글로벌 거시경제 및 패션 원가 지표 모니터링")
     st.caption("환율, 금리, 원자재 및 미국 거시경제 지표를 실시간으로 가져옵니다.")
-    st.write("")
 
     try:
         yf_data, fred_data = get_macro_data_complete_final()
 
         col1, col2 = st.columns(2)
+
         with col1:
-            mini_line_card("💱 원/달러 환율 (최근 1년)", yf_data["원/달러 환율"], unit_suffix="원", fmt="{:,.1f}", color=PALETTE["blue"])
-        with col2:
+            st.markdown("#### 💱 원/달러 환율 (최근 1년)")
             with st.container(border=True):
-                card_title("🏦 한·미 기준금리 추이 (최근 5년)", accent="accent-red")
+                if not yf_data["원/달러 환율"].empty:
+                    s = yf_data["원/달러 환율"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: {f_val:,.1f}원 ➔ 최신: {l_val:,.1f}원 (증감률: **{chg:+.1f}%**)")
+
+                    fig_krw = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color=PALETTE["blue"], width=2)))
+                    fig_krw.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.1f}", f"{l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["blue"])))
+                    fig_krw.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_krw, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
+        with col2:
+            st.markdown("#### 🏦 한·미 기준금리 추이 (최근 5년)")
+            with st.container(border=True):
                 us_s, kr_s = fred_data["미국 기준금리"], fred_data["한국 기준금리"]
                 if not us_s.empty and not kr_s.empty:
                     f_us, l_us = us_s.iloc[0], us_s.iloc[-1]
                     f_kr, l_kr = kr_s.iloc[0], kr_s.iloc[-1]
-                    st.markdown(
-                        f'<div style="font-size:12px;color:#334155;margin-bottom:6px;">'
-                        f'🇺🇸 미국: {f_us:.2f}% &rarr; {l_us:.2f}% ({l_us-f_us:+.2f}%p) &nbsp;|&nbsp; '
-                        f'🇰🇷 한국: {f_kr:.2f}% &rarr; {l_kr:.2f}% ({l_kr-f_kr:+.2f}%p)</div>',
-                        unsafe_allow_html=True
-                    )
+                    st.write(f"🇺🇸 미국: {f_us:.2f}% ➔ {l_us:.2f}% ({l_us-f_us:+.2f}%p) | 🇰🇷 한국: {f_kr:.2f}% ➔ {l_kr:.2f}% ({l_kr-f_kr:+.2f}%p)")
 
                     fig_rate = go.Figure()
                     fig_rate.add_trace(go.Scatter(x=us_s.index, y=us_s, name='미국 (Fed)', line=dict(color=PALETTE["red"], width=2.5)))
                     fig_rate.add_trace(go.Scatter(x=kr_s.index, y=kr_s, name='한국 (BOK)', line=dict(color=PALETTE["blue"], width=2.5)))
                     fig_rate.add_trace(go.Scatter(x=[us_s.index[0], us_s.index[-1]], y=[f_us, l_us], mode='markers+text', text=[f"{f_us:.1f}%", f"{l_us:.1f}%"], textposition="top center", marker=dict(size=6, color=PALETTE["red"]), showlegend=False))
                     fig_rate.add_trace(go.Scatter(x=[kr_s.index[0], kr_s.index[-1]], y=[f_kr, l_kr], mode='markers+text', text=[f"{f_kr:.1f}%", f"{l_kr:.1f}%"], textposition="bottom center", marker=dict(size=6, color=PALETTE["blue"]), showlegend=False))
-                    fig_rate.update_layout(
-                        height=260, margin=dict(l=20, r=20, t=10, b=10),
-                        plot_bgcolor='white', paper_bgcolor='white',
-                        font=dict(family="Inter, Noto Sans KR, sans-serif", color="#334155", size=11),
-                        showlegend=True, legend=dict(orientation="h", y=1.15),
-                        xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]),
-                        yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"])
-                    )
-                    st.plotly_chart(fig_rate, use_container_width=True)
+                    fig_rate.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=True, legend=dict(orientation="h", y=1.15), xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_rate, width='stretch')
                 else:
                     st.info("데이터를 불러올 수 없습니다.")
 
-        st.write("")
-        st.markdown('<div class="ctitle accent-amber">🛢️ 핵심 원자재 가격 동향 (최근 1년)</div>', unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown("### 🛢️ 핵심 원자재 가격 동향 (최근 1년)")
         col3, col4 = st.columns(2)
+
         with col3:
-            mini_line_card("🌱 국제 면화 선물 가격", yf_data["글로벌 면화(Cotton)"], unit_prefix="$", fmt="{:,.1f}", color=PALETTE["amber"])
+            st.markdown("#### 🌱 국제 면화 선물 가격")
+            with st.container(border=True):
+                if not yf_data["글로벌 면화(Cotton)"].empty:
+                    s = yf_data["글로벌 면화(Cotton)"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: ${f_val:,.1f} ➔ 최신: ${l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+
+                    fig_ct = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color=PALETTE["amber"], width=2)))
+                    fig_ct.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"${f_val:,.1f}", f"${l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["amber"])))
+                    fig_ct.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_ct, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
         with col4:
-            mini_line_card("⚓ WTI 국제 유가", yf_data["WTI 국제 유가"], unit_prefix="$", fmt="{:,.1f}", color=PALETTE["blue_d"])
+            st.markdown("#### ⚓ WTI 국제 유가")
+            with st.container(border=True):
+                if not yf_data["WTI 국제 유가"].empty:
+                    s = yf_data["WTI 국제 유가"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: ${f_val:,.1f} ➔ 최신: ${l_val:,.1f} (증감률: **{chg:+.1f}%**)")
 
-        st.write("")
-        st.markdown('<div class="ctitle accent-green">🦅 미국 거시경제 경기 지표 (최근 5년 트렌드)</div>', unsafe_allow_html=True)
+                    fig_wti = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color=PALETTE["blue_d"], width=2)))
+                    fig_wti.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"${f_val:,.1f}", f"${l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["blue_d"])))
+                    fig_wti.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_wti, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
+        st.markdown("---")
+        st.markdown("### 🦅 미국 거시경제 경기 지표 (최근 5년 트렌드)")
         col5, col6 = st.columns(2)
-        with col5:
-            mini_line_card("🏢 미국 실질 GDP (분기별)", fred_data["미국 실질 GDP"], fmt="{:,.0f}", color="#7C3AED")
-        with col6:
-            mini_line_card("👕 미국 의류 소비자물가지수(CPI)", fred_data["미국 의류 소비자물가지수(CPI)"], fmt="{:,.1f}", color=PALETTE["amber"])
 
-        st.write("")
-        st.markdown('<div class="ctitle">📊 미국 의류 소매업 공급망 지표 (최근 5년 트렌드)</div>', unsafe_allow_html=True)
+        with col5:
+            st.markdown("#### 🏢 미국 실질 GDP (분기별)")
+            with st.container(border=True):
+                if not fred_data["미국 실질 GDP"].empty:
+                    s = fred_data["미국 실질 GDP"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: {f_val:,.0f} ➔ 최신: {l_val:,.0f} (증감률: **{chg:+.1f}%**)")
+
+                    fig_gdp = go.Figure(go.Scatter(x=s.index, y=s, mode='lines+markers', line=dict(color="#7C3AED", width=2)))
+                    fig_gdp.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.0f}", f"{l_val:,.0f}"], textposition=["top right", "top left"], marker=dict(size=8, color="#7C3AED")))
+                    fig_gdp.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_gdp, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
+        with col6:
+            st.markdown("#### 👕 미국 의류 소비자물가지수(CPI)")
+            with st.container(border=True):
+                if not fred_data["미국 의류 소비자물가지수(CPI)"].empty:
+                    s = fred_data["미국 의류 소비자물가지수(CPI)"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: {f_val:,.1f} ➔ 최신: {l_val:,.1f} (증감률: **{chg:+.1f}%**)")
+
+                    fig_cpi = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color=PALETTE["amber"], width=2)))
+                    fig_cpi.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:,.1f}", f"{l_val:,.1f}"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["amber"])))
+                    fig_cpi.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_cpi, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
+        st.markdown("---")
+        st.markdown("### 📊 미국 의류 소매업 공급망 지표 (최근 5년 트렌드)")
         col7, col8 = st.columns(2)
+
         with col7:
-            mini_line_card("📦 미국 의류 소매재고율 (Inventory-to-Sales)", fred_data["미국 의류 소매재고율"], unit_suffix="개월", fmt="{:.2f}", color=PALETTE["green"], fill=True)
+            st.markdown("#### 📦 미국 의류 소매재고율 (Inventory-to-Sales)")
+            with st.container(border=True):
+                if not fred_data["미국 의류 소매재고율"].empty:
+                    s = fred_data["미국 의류 소매재고율"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: {f_val:.2f}개월 ➔ 최신: {l_val:.2f}개월 (증감률: **{chg:+.1f}%**)")
+
+                    fig_inv = go.Figure(go.Scatter(x=s.index, y=s, fill='tozeroy', line=dict(color=PALETTE["green"], width=2)))
+                    fig_inv.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"{f_val:.2f}", f"{l_val:.2f}"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["green"])))
+                    fig_inv.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_inv, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
+
         with col8:
-            mini_line_card("🛍️ 미국 의류 소매 판매액 (의류 매장 매출 총액)", fred_data["미국 의류 소매판매액"], unit_prefix="$", unit_suffix="M", fmt="{:,.0f}", color=PALETTE["red"])
+            st.markdown("#### 🛍️ 미국 의류 소매 판매액 (의류 매장 매출 총액)")
+            with st.container(border=True):
+                if not fred_data["미국 의류 소매판매액"].empty:
+                    s = fred_data["미국 의류 소매판매액"]
+                    f_val, l_val = s.iloc[0], s.iloc[-1]
+                    chg = ((l_val - f_val) / f_val) * 100
+                    st.write(f"🔹 시작: ${f_val:,.0f}M ➔ 최신: ${l_val:,.0f}M (증감률: **{chg:+.1f}%**)")
+
+                    fig_sales = go.Figure(go.Scatter(x=s.index, y=s, line=dict(color=PALETTE["red"], width=2)))
+                    fig_sales.add_trace(go.Scatter(x=[s.index[0], s.index[-1]], y=[f_val, l_val], mode='markers+text', text=[f"${f_val:,.0f}M", f"${l_val:,.0f}M"], textposition=["top right", "top left"], marker=dict(size=8, color=PALETTE["red"])))
+                    fig_sales.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=10), plot_bgcolor='white', paper_bgcolor='white', showlegend=False, xaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]), yaxis=dict(showgrid=True, gridcolor=PALETTE["grid"]))
+                    st.plotly_chart(fig_sales, width='stretch')
+                else:
+                    st.info("데이터를 불러올 수 없습니다.")
 
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
