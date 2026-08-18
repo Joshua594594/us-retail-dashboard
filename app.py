@@ -8,73 +8,9 @@ import yfinance as yf # 👈 금융 데이터 호출용
 st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
 st.title("📊 US Market & Trade & Company Dashboard")
 
-# ==========================================
-# 🎨 한솔섬유 HTML 디자인 톤 강제 적용 (CSS 주입)
-# ==========================================
-st.markdown("""
-<style>
-    /* 전체 폰트 통일 (Noto Sans KR 적용) */
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
-    html, body, [class*="css"] {
-        font-family: 'Noto Sans KR', sans-serif;
-    }
-    
-    /* 1. KPI 카드 디자인 (첨부파일 스타일 완벽 재현) */
-    div[data-testid="metric-container"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 9px;
-        padding: 15px 18px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        border-top: 3px solid #2563EB; /* 상단 파란색 포인트 라인 */
-    }
-    div[data-testid="metric-container"] > div {
-        color: #64748B; /* 소제목 색상 */
-        font-weight: 700;
-    }
-    div[data-testid="metric-container"] label {
-        font-size: 23px !important; /* 숫자 크기 키우기 */
-        font-weight: 800 !important;
-        color: #0F172A !important;
-        letter-spacing: -1px;
-    }
-
-    /* 2. 탭(Tab) 디자인 변경 (딥블루톤) */
-    div[data-baseweb="tab-list"] {
-        background-color: #1E3A8A; /* 딥블루 배경 */
-        padding: 5px 20px;
-        border-radius: 8px;
-    }
-    div[data-baseweb="tab-list"] button {
-        color: rgba(255, 255, 255, 0.55); /* 비활성 탭 글자색 */
-        font-weight: 600;
-    }
-    div[data-baseweb="tab-list"] button[aria-selected="true"] {
-        color: #FFFFFF; /* 활성 탭 글자색 */
-        border-bottom: 3px solid #60A5FA !important;
-    }
-
-    /* 3. 섹션 제목 디자인 (왼쪽 파란색 바) */
-    h3 {
-        font-size: 16px !important;
-        font-weight: 700 !important;
-        border-left: 4px solid #2563EB;
-        padding-left: 10px;
-        color: #0F172A;
-    }
-    
-    /* 4. 데이터프레임(표) 헤더 딥블루 스타일 */
-    th {
-        background-color: #1E3A8A !important;
-        color: #FFFFFF !important;
-        font-weight: 600 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # 2. 탭 생성 (이제 탭이 4개입니다!)
 # 💡 기존의 3개짜리 st.tabs를 지우고, 반드시 아래와 같이 4개로 정의해야 합니다!
-tab1, tab2, tab3, tab4 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 FRED 소매 판매", "🚢 OTEXA 수입 데이터", "🏢 기업 모니터링", "🌐 거시경제 및 원가", "🛡️ 바이어 신용등급"])
 
 # ==========================================
 # [Tab 1] 미국 소매 판매 현황 (최종 교정 완료판 🚀)
