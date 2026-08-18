@@ -5,72 +5,75 @@ import numpy as np
 import yfinance as yf
 
 # ==========================================
-# 1. 페이지 설정
+# 1. 페이지 설정 및 제목 (💡 여기서 제목을 원하시는 대로 바꾸시면 됩니다!)
 # ==========================================
-st.set_page_config(page_title="US Market & Trade Dashboard", layout="wide")
+st.set_page_config(page_title="한솔섬유 대시보드", layout="wide") # 브라우저 탭 이름
+st.title("📊 한솔섬유 US Market & RM 통합 대시보드") # 화면 메인 제목
 
 # ==========================================
-# 디자인 시스템 (최소한의 톤 통일만: 카드형 패널, 딥블루 탭, 테이블 헤더 색상)
-# 장식적인 KPI 카드/아이콘/뱃지는 요청에 따라 제거했습니다.
+# 🎨 한솔섬유 HTML 디자인 톤 강제 적용 (CSS 주입)
 # ==========================================
-DESIGN_CSS = """
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+    /* 전체 폰트 통일 (Noto Sans KR 적용) */
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+    html, body, [class*="css"] {
+        font-family: 'Noto Sans KR', sans-serif;
+    }
+    
+    /* 1. KPI 카드 디자인 (첨부파일 스타일 완벽 재현) */
+    div[data-testid="metric-container"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 9px;
+        padding: 15px 18px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        border-top: 3px solid #2563EB; /* 상단 파란색 포인트 라인 */
+    }
+    div[data-testid="metric-container"] > div {
+        color: #64748B; /* 소제목 색상 */
+        font-weight: 700;
+    }
+    div[data-testid="metric-container"] label {
+        font-size: 23px !important; /* 숫자 크기 키우기 */
+        font-weight: 800 !important;
+        color: #0F172A !important;
+        letter-spacing: -1px;
+    }
 
-:root{
-  --blue:#2563EB; --blue-d:#1E3A8A;
-  --green:#059669; --red:#DC2626; --amber:#D97706;
-  --gray3:#E2E8F0; --gray5:#64748B; --gray1:#F8FAFC;
-  --text:#0F172A;
-}
+    /* 2. 💡 탭(Tab) 디자인 변경 (보호색 에러 완벽 해결!) */
+    div[data-baseweb="tab-list"] {
+        background-color: transparent; 
+        border-bottom: 2px solid #E2E8F0;
+        padding-bottom: 0px;
+    }
+    div[data-baseweb="tab-list"] button {
+        color: #64748B !important; /* 비활성 탭 글자색 (세련된 슬레이트 그레이) */
+        font-weight: 600;
+        font-size: 15px;
+    }
+    div[data-baseweb="tab-list"] button[aria-selected="true"] {
+        color: #1E3A8A !important; /* 활성 탭 글자색 (진한 딥블루) */
+        border-bottom: 4px solid #2563EB !important; /* 활성 탭 밑줄 (쨍한 파란색) */
+    }
 
-html, body, [class*="css"] { font-family:'Noto Sans KR',sans-serif; }
-.stApp{ background:var(--gray1); }
-#MainMenu{visibility:hidden;} footer{visibility:hidden;}
-
-/* 와이드 화면 폭을 그대로 사용 (임의로 좁히지 않음) */
-.block-container{ padding-top:1.2rem; padding-bottom:2.5rem; max-width:100%; }
-
-/* 탭을 딥블루 톤으로 */
-.stTabs [data-baseweb="tab-list"]{
-  background:var(--blue-d); padding:5px 8px; border-radius:8px; gap:2px; margin-bottom:14px;
-}
-.stTabs [data-baseweb="tab"]{
-  color:rgba(255,255,255,.6); font-weight:600; font-size:13px;
-  padding:9px 16px; border-radius:6px 6px 0 0; border:none !important;
-}
-.stTabs [data-baseweb="tab"]:hover{ color:#fff; }
-.stTabs [aria-selected="true"]{
-  color:#fff !important; background:rgba(255,255,255,.08) !important;
-  border-bottom:3px solid #60A5FA !important;
-}
-
-/* 차트/표를 감싸는 카드 패널 (장식 없이 테두리+그림자만) */
-div[data-testid="stVerticalBlockBorderWrapper"]{
-  background:#fff; border:1px solid var(--gray3) !important; border-radius:10px !important;
-  box-shadow:0 1px 4px rgba(0,0,0,.05);
-}
-
-/* 섹션 소제목 (아이콘 없이 텍스트만, 좌측 얇은 컬러 바) */
-.ctitle{
-  font-size:13px; font-weight:700; color:var(--text);
-  margin:2px 0 10px 0; padding-left:9px; border-left:3px solid var(--blue);
-}
-
-/* 표 헤더 색상 통일 */
-[data-testid="stDataFrame"] thead tr th{
-  background:var(--blue-d) !important; color:#fff !important; font-weight:600 !important;
-}
-
-/* st.metric 기본 컴포넌트를 살짝만 카드처럼 */
-[data-testid="stMetric"]{
-  background:#fff; border:1px solid var(--gray3); border-radius:8px; padding:12px 16px;
-}
-
-hr{ border-color:var(--gray3) !important; }
+    /* 3. 섹션 제목 디자인 (왼쪽 파란색 바) */
+    h3 {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        border-left: 4px solid #2563EB;
+        padding-left: 10px;
+        color: #0F172A;
+    }
+    
+    /* 4. 데이터프레임(표) 헤더 딥블루 스타일 */
+    th {
+        background-color: #1E3A8A !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }
 </style>
-"""
-st.markdown(DESIGN_CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 st.title("📊 US Market & Trade & Company Dashboard")
 
