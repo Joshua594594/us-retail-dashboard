@@ -8,3 +8,4 @@ deep-translator
 pandas-datareader
 setuptools
 fastapi
+deep-translator
