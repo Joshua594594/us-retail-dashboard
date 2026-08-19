@@ -5,6 +5,7 @@ import yfinance as yf
 import requests
 import os
 import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
@@ -109,95 +110,116 @@ def get_otexa_data():
         "years": [c for c in share_df.columns if c != 'Country']
     }
 
-# [Tab 3] 기업 모니터링 (초고속 초병렬화 개조)
+# [Tab 3] 기업 모니터링 (500 에러 수정 및 방어막 구축)
 @app.get("/api/company")
 def get_company_data(ticker: str, keyword: str):
-    tkr = yf.Ticker(ticker)
-    
-    # 1. 주가 수집 함수
-    def fetch_hist():
-        try: return tkr.history(period="1y")
-        except: return pd.DataFrame()
+    try:
+        tkr = yf.Ticker(ticker)
+        
+        # 1. 주가 수집
+        def fetch_hist():
+            try: return tkr.history(period="1y")
+            except: return pd.DataFrame()
 
-    # 2. 재무 수집 함수
-    def fetch_fin():
-        try: return tkr.quarterly_financials
-        except: return None
+        # 2. 재무 수집
+        def fetch_fin():
+            try: return tkr.quarterly_financials
+            except: return None
 
-    # 3. 뉴스 수집 및 병렬 번역 함수
-    def fetch_news():
-        translated = []
-        try:
-            url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if (".KS" in ticker or ".KQ" in ticker) else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
-            req = urllib.request.Request(url, headers=HEADERS)
-            xml_data = urllib.request.urlopen(req, timeout=3).read()
-            root = ET.fromstring(xml_data)
-            items = root.findall('.//item')[:5]
+        # 3. 뉴스 수집 및 번역
+        def fetch_news():
+            translated = []
+            try:
+                is_kr = (".KS" in ticker or ".KQ" in ticker)
+                url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if is_kr else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
+                req = urllib.request.Request(url, headers=HEADERS)
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    xml_data = resp.read()
+                root = ET.fromstring(xml_data)
+                items = root.findall('.//item')[:5]
+                
+                def parse_item(item):
+                    title = item.find('title').text if item.find('title') is not None else ""
+                    link = item.find('link').text if item.find('link') is not None else "#"
+                    pub = item.find('source').text if item.find('source') is not None else 'Google News'
+                    if not is_kr and title:
+                        try: title = GoogleTranslator(source='auto', target='ko').translate(title)
+                        except: pass
+                    return {"title": f"[{pub}] {title}", "link": link}
+
+                with ThreadPoolExecutor(max_workers=5) as news_exec:
+                    translated = list(news_exec.map(parse_item, items))
+            except: pass
+            return translated
+
+        with ThreadPoolExecutor(max_workers=3) as main_exec:
+            f_hist = main_exec.submit(fetch_hist)
+            f_fin = main_exec.submit(fetch_fin)
+            f_news = main_exec.submit(fetch_news)
             
-            def parse_item(item):
-                title = item.find('title').text
-                link = item.find('link').text
-                pub = item.find('source').text if item.find('source') is not None else 'Google News'
-                if not (".KS" in ticker or ".KQ" in ticker):
-                    try: title = GoogleTranslator(source='auto', target='ko').translate(title)
-                    except: pass
-                return {"title": f"[{pub}] {title}", "link": link}
+            hist = f_hist.result()
+            q_fin = f_fin.result()
+            translated_news = f_news.result()
 
-            with ThreadPoolExecutor(max_workers=5) as news_exec:
-                translated = list(news_exec.map(parse_item, items))
-        except: pass
-        return translated
+        # 주가 데이터 처리 (KeyError 방지 수정)
+        current_price = 0
+        mom_growth = 0
+        hist_json = []
+        if hist is not None and not hist.empty:
+            valid_closes = hist['Close'].dropna()
+            if not valid_closes.empty:
+                current_price = float(valid_closes.iloc[-1])
+            
+            hist_df = hist.reset_index()
+            hist_df['YM'] = hist_df['Date'].dt.to_period('M')
+            monthly_avg = hist_df.groupby('YM')['Close'].mean()
+            if len(monthly_avg) >= 2:
+                mom_growth = float(((monthly_avg.iloc[-1] / monthly_avg.iloc[-2]) - 1) * 100)
+            
+            # hist.index 사용으로 KeyError 해결!
+            hist_json = [{"date": str(d)[:10], "close": float(c)} for d, c in zip(hist.index, hist['Close']) if not pd.isna(c)]
 
-    # ⚡ 주가, 재무, 뉴스를 3개 스레드로 동시에 1초 만에 처리!
-    with ThreadPoolExecutor(max_workers=3) as main_exec:
-        f_hist = main_exec.submit(fetch_hist)
-        f_fin = main_exec.submit(fetch_fin)
-        f_news = main_exec.submit(fetch_news)
-        
-        hist = f_hist.result()
-        q_fin = f_fin.result()
-        translated_news = f_news.result()
+        # 재무 데이터 처리
+        fin_data = []
+        if q_fin is not None and not q_fin.empty:
+            try:
+                rev_idx = [i for i in q_fin.index if 'Total Revenue' in i or 'Revenue' in i]
+                op_idx = [i for i in q_fin.index if 'Operating Income' in i]
+                rows = []
+                if rev_idx: rows.append(rev_idx[0])
+                if op_idx: rows.append(op_idx[0])
+                if rows:
+                    raw_fin = q_fin.loc[rows].copy().iloc[:, :5]
+                    raw_fin.columns = [str(c).split(' ')[0] for c in raw_fin.columns]
+                    raw_fin = raw_fin[raw_fin.columns[::-1]]
+                    growth = raw_fin.pct_change(periods=1, axis=1) * 100
+                    growth = growth.dropna(how='all', axis=1)
+                    fin_data = growth.fillna(0).reset_index().to_dict(orient='records')
+            except: pass
 
-    # 주가 데이터 처리
-    current_price = 0
-    mom_growth = 0
-    hist_json = []
-    if hist is not None and not hist.empty:
-        valid_closes = hist['Close'].dropna()
-        if not valid_closes.empty:
-            current_price = float(valid_closes.iloc[-1])
-        
-        hist_df = hist.reset_index()
-        hist_df['YM'] = hist_df['Date'].dt.to_period('M')
-        monthly_avg = hist_df.groupby('YM')['Close'].mean()
-        if len(monthly_avg) >= 2:
-            mom_growth = float(((monthly_avg.iloc[-1] / monthly_avg.iloc[-2]) - 1) * 100)
-        hist_json = [{"date": str(d)[:10], "close": float(c)} for d, c in zip(hist['Date'], hist['Close']) if not pd.isna(c)]
+        currency_code = "USD"
+        if ".KS" in ticker or ".KQ" in ticker: currency_code = "KRW"
+        elif ".T" in ticker: currency_code = "JPY"
+        elif ".TO" in ticker: currency_code = "CAD"
 
-    # 재무 데이터 처리
-    fin_data = []
-    if q_fin is not None and not q_fin.empty:
-        try:
-            rev_idx = [i for i in q_fin.index if 'Total Revenue' in i or 'Revenue' in i]
-            op_idx = [i for i in q_fin.index if 'Operating Income' in i]
-            rows = []
-            if rev_idx: rows.append(rev_idx[0])
-            if op_idx: rows.append(op_idx[0])
-            if rows:
-                raw_fin = q_fin.loc[rows].copy().iloc[:, :5]
-                raw_fin.columns = [str(c).split(' ')[0] for c in raw_fin.columns]
-                raw_fin = raw_fin[raw_fin.columns[::-1]]
-                growth = raw_fin.pct_change(periods=1, axis=1) * 100
-                growth = growth.dropna(how='all', axis=1)
-                fin_data = growth.fillna(0).reset_index().to_dict(orient='records')
-        except: pass
-
-    currency_code = "USD"
-    if ".KS" in ticker or ".KQ" in ticker: currency_code = "KRW"
-    elif ".T" in ticker: currency_code = "JPY"
-    elif ".TO" in ticker: currency_code = "CAD"
-
-    return {"price": current_price, "mom": mom_growth, "history": hist_json, "financials": fin_data, "news": translated_news, "currency": currency_code}
+        return {
+            "price": current_price,
+            "mom": mom_growth,
+            "history": hist_json,
+            "financials": fin_data,
+            "news": translated_news,
+            "currency": currency_code
+        }
+    except Exception as e:
+        # 어떤 에러가 발생해도 500으로 다운되지 않고 안전한 데이터 반환
+        return {
+            "price": 0,
+            "mom": 0,
+            "history": [],
+            "financials": [],
+            "news": [],
+            "currency": "USD"
+        }
 
 # [Tab 4] 거시경제
 @app.get("/api/macro")
