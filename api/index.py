@@ -51,7 +51,6 @@ def get_fred_data():
         "General Merchandise Stores": "RSGMS", "Miscellaneous Store Retailers": "RSMSR"
     }
     
-    # ⚡ 13개 시리즈를 병렬로 동시 수집 (10초 -> 1초로 단축!)
     series_items = list(series_map.items())
     with ThreadPoolExecutor(max_workers=10) as executor:
         results = list(executor.map(fetch_single_fred, series_items))
@@ -110,36 +109,75 @@ def get_otexa_data():
         "years": [c for c in share_df.columns if c != 'Country']
     }
 
-# [Tab 3] 기업 모니터링
+# [Tab 3] 기업 모니터링 (초고속 초병렬화 개조)
 @app.get("/api/company")
 def get_company_data(ticker: str, keyword: str):
     tkr = yf.Ticker(ticker)
-    try: hist = tkr.history(period="1y")
-    except: hist = pd.DataFrame()
     
-    info = {}
-    try: info = tkr.info
-    except: pass
-    
-    current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
-    if (current_price == 0 or pd.isna(current_price)) and not hist.empty:
-        valid_closes = hist['Close'].dropna()
-        current_price = valid_closes.iloc[-1] if not valid_closes.empty else 0
+    # 1. 주가 수집 함수
+    def fetch_hist():
+        try: return tkr.history(period="1y")
+        except: return pd.DataFrame()
+
+    # 2. 재무 수집 함수
+    def fetch_fin():
+        try: return tkr.quarterly_financials
+        except: return None
+
+    # 3. 뉴스 수집 및 병렬 번역 함수
+    def fetch_news():
+        translated = []
+        try:
+            url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if (".KS" in ticker or ".KQ" in ticker) else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
+            req = urllib.request.Request(url, headers=HEADERS)
+            xml_data = urllib.request.urlopen(req, timeout=3).read()
+            root = ET.fromstring(xml_data)
+            items = root.findall('.//item')[:5]
+            
+            def parse_item(item):
+                title = item.find('title').text
+                link = item.find('link').text
+                pub = item.find('source').text if item.find('source') is not None else 'Google News'
+                if not (".KS" in ticker or ".KQ" in ticker):
+                    try: title = GoogleTranslator(source='auto', target='ko').translate(title)
+                    except: pass
+                return {"title": f"[{pub}] {title}", "link": link}
+
+            with ThreadPoolExecutor(max_workers=5) as news_exec:
+                translated = list(news_exec.map(parse_item, items))
+        except: pass
+        return translated
+
+    # ⚡ 주가, 재무, 뉴스를 3개 스레드로 동시에 1초 만에 처리!
+    with ThreadPoolExecutor(max_workers=3) as main_exec:
+        f_hist = main_exec.submit(fetch_hist)
+        f_fin = main_exec.submit(fetch_fin)
+        f_news = main_exec.submit(fetch_news)
         
+        hist = f_hist.result()
+        q_fin = f_fin.result()
+        translated_news = f_news.result()
+
+    # 주가 데이터 처리
+    current_price = 0
     mom_growth = 0
     hist_json = []
-    if not hist.empty:
+    if hist is not None and not hist.empty:
+        valid_closes = hist['Close'].dropna()
+        if not valid_closes.empty:
+            current_price = float(valid_closes.iloc[-1])
+        
         hist_df = hist.reset_index()
         hist_df['YM'] = hist_df['Date'].dt.to_period('M')
         monthly_avg = hist_df.groupby('YM')['Close'].mean()
         if len(monthly_avg) >= 2:
-            mom_growth = ((monthly_avg.iloc[-1] / monthly_avg.iloc[-2]) - 1) * 100
-        hist_json = [{"date": str(d)[:10], "close": c} for d, c in zip(hist['Date'], hist['Close']) if not pd.isna(c)]
-        
+            mom_growth = float(((monthly_avg.iloc[-1] / monthly_avg.iloc[-2]) - 1) * 100)
+        hist_json = [{"date": str(d)[:10], "close": float(c)} for d, c in zip(hist['Date'], hist['Close']) if not pd.isna(c)]
+
+    # 재무 데이터 처리
     fin_data = []
-    try:
-        q_fin = tkr.quarterly_financials
-        if q_fin is not None and not q_fin.empty:
+    if q_fin is not None and not q_fin.empty:
+        try:
             rev_idx = [i for i in q_fin.index if 'Total Revenue' in i or 'Revenue' in i]
             op_idx = [i for i in q_fin.index if 'Operating Income' in i]
             rows = []
@@ -152,22 +190,7 @@ def get_company_data(ticker: str, keyword: str):
                 growth = raw_fin.pct_change(periods=1, axis=1) * 100
                 growth = growth.dropna(how='all', axis=1)
                 fin_data = growth.fillna(0).reset_index().to_dict(orient='records')
-    except: pass
-    
-    translated_news = []
-    try:
-        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if (".KS" in ticker or ".KQ" in ticker) else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
-        req = urllib.request.Request(url, headers=HEADERS)
-        xml_data = urllib.request.urlopen(req).read()
-        root = ET.fromstring(xml_data)
-        for item in root.findall('.//item')[:5]:
-            title = item.find('title').text
-            link = item.find('link').text
-            pub = item.find('source').text if item.find('source') is not None else 'Google News'
-            if not (".KS" in ticker or ".KQ" in ticker):
-                title = GoogleTranslator(source='auto', target='ko').translate(title)
-            translated_news.append({"title": f"[{pub}] {title}", "link": link})
-    except: pass
+        except: pass
 
     currency_code = "USD"
     if ".KS" in ticker or ".KQ" in ticker: currency_code = "KRW"

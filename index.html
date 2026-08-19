@@ -44,7 +44,6 @@ th, td { padding: 8px 10px; border: 1px solid var(--line); white-space: nowrap; 
 th { background-color: var(--panel); color: var(--muted); text-align: center; font-weight: 600; }
 tr:hover td { background-color: #f0f9ff; }
 
-/* Clothing 강조 행 전체 감싸기 */
 tr.clothing-highlight td {
     background-color: #FEF2F2 !important;
     border-top: 2px solid #ef4444 !important;
@@ -90,7 +89,7 @@ optgroup { font-weight: 700; color: var(--muted); }
   <div id="tab1" class="page active">
     <div class="card">
         <h3 class="ctitle">미국 소매 카테고리 별 성장률 (YTD)</h3>
-        <div id="fred-ytd" class="loader">FRED 데이터 분석 중... (약 1초 소요)</div>
+        <div id="fred-ytd" class="loader">FRED 데이터 분석 중...</div>
     </div>
     <div class="card">
         <h3 class="ctitle">주요 4개 카테고리 전년 동월대비 증감률 추이 (YoY %)</h3>
@@ -222,7 +221,6 @@ function showTab(tabId, el) {
     if(tabId === 'tab4' && !window.macroLoaded) { window.macroLoaded=true; loadMacro(); }
 }
 
-// 1년치 차트 레이아웃 (월별)
 const chartLayout1Yr = {
     plot_bgcolor: '#fff', paper_bgcolor: '#fff',
     margin: {l: 45, r: 25, t: 10, b: 35},
@@ -233,7 +231,6 @@ const chartLayout1Yr = {
     yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}}
 };
 
-// 5년치 차트 레이아웃 (연도별)
 const chartLayout5Yr = {
     plot_bgcolor: '#fff', paper_bgcolor: '#fff',
     margin: {l: 45, r: 25, t: 10, b: 35},
@@ -264,7 +261,6 @@ function loadFred() {
             let vals = Object.values(data.ytd).reverse();
             let targetIdx = cats.indexOf("Clothing and Clothing Accessories Stores");
             
-            // 넉넉한 레드 박스 하이라이트
             let shapes = targetIdx >= 0 ? [{
                 type: 'rect', xref: 'paper', x0: -0.75, x1: 1.08, yref: 'y', y0: targetIdx - 0.45, y1: targetIdx + 0.45,
                 fillcolor: 'rgba(239, 68, 68, 0.12)', line: {color: '#ef4444', width: 2}, layer: 'below'
@@ -276,7 +272,6 @@ function loadFred() {
                 text: vals.map(v => v.toFixed(1) + '%'), textposition: 'outside'
             }], { height: 520, margin: {l: 450, r: 60, t: 10, b: 20}, xaxis: {gridcolor: '#e2e8f0'}, shapes: shapes });
 
-            // 4개 카테고리 꺾은선 추이
             if(data.trend && data.trend.length > 0) {
                 let tDates = data.trend.map(d => d.Date);
                 let tCols = ["Total Retail Trade", "Nonstore Retailers", "Clothing and Clothing Accessories Stores", "Offline"];
@@ -288,7 +283,6 @@ function loadFred() {
                 Plotly.newPlot('fred-line-chart', lineTraces, { ...chartLayout1Yr, height: 300, legend: {orientation: 'h', y: -0.25} });
             }
 
-            // YoY Table
             let tableData = data.table;
             if(tableData.length > 0) {
                 let cols = Object.keys(tableData[0]);
@@ -373,54 +367,68 @@ function loadOtexa() {
     });
 }
 
-// [Tab 3] 기업 모니터링
+// [Tab 3] 기업 모니터링 (안전 예외 처리 강화)
 function loadCompany() {
-    document.getElementById('comp-price').innerHTML = "<div class='loader'>주가 데이터 로딩 중...</div>";
-    document.getElementById('comp-chart').innerHTML = "";
-    document.getElementById('comp-fin').innerHTML = "";
-    document.getElementById('comp-news').innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
+    const priceEl = document.getElementById('comp-price');
+    const chartEl = document.getElementById('comp-chart');
+    const finEl = document.getElementById('comp-fin');
+    const newsEl = document.getElementById('comp-news');
+
+    priceEl.innerHTML = "<div class='loader'>주가 데이터 로딩 중...</div>";
+    chartEl.innerHTML = "";
+    finEl.innerHTML = "";
+    newsEl.innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
     
     let val = document.getElementById('companySelect').value.split('|');
     
-    fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`).then(r=>r.json()).then(data => {
-        let pColor = data.mom >= 0 ? 'pos' : 'neg';
-        let pSign = data.mom >= 0 ? '+' : '';
-        let currSym = data.currency === "KRW" ? "₩" : data.currency === "JPY" ? "¥" : data.currency === "CAD" ? "CA$" : "$";
-        
-        document.getElementById('comp-price').innerHTML = `
-            <div class="metric">${currSym} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-            <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
-        `;
-        
-        let dates = data.history.map(d => d.date);
-        let closes = data.history.map(d => d.close);
-        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { 
-            ...chartLayout1Yr, height: 220, margin: {t:10, b:35, l:50, r:20} 
+    fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`)
+        .then(r => {
+            if(!r.ok) throw new Error("서버 응답 오류 (" + r.status + ")");
+            return r.json();
+        })
+        .then(data => {
+            let pColor = data.mom >= 0 ? 'pos' : 'neg';
+            let pSign = data.mom >= 0 ? '+' : '';
+            let currSym = data.currency === "KRW" ? "₩" : data.currency === "JPY" ? "¥" : data.currency === "CAD" ? "CA$" : "$";
+            
+            priceEl.innerHTML = `
+                <div class="metric">${currSym} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+                <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
+            `;
+            
+            let dates = data.history.map(d => d.date);
+            let closes = data.history.map(d => d.close);
+            Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { 
+                ...chartLayout1Yr, height: 220, margin: {t:10, b:35, l:50, r:20} 
+            });
+            
+            if(data.financials && data.financials.length > 0) {
+                let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
+                let fTraces = data.financials.map(row => {
+                    let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#f59e0b' : '#0078d4';
+                    return {
+                        x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
+                        text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), 
+                        textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#0f172a'}
+                    };
+                });
+                Plotly.newPlot('comp-fin', fTraces, { 
+                    barmode: 'group', ...chartLayout1Yr, height: 280, 
+                    margin:{t:30, b:30, l:45, r:20}, 
+                    yaxis: {showgrid: true, gridcolor: '#e2e8f0', automargin: true},
+                    legend: {orientation: 'h', y: 1.25} 
+                });
+            } else {
+                finEl.innerHTML = "<div style='padding:20px; color:#64748b; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
+            }
+            
+            let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">${n.title}</a></div>`).join('');
+            newsEl.innerHTML = newsHtml || "<div style='padding:20px; font-size:12px;'>관련 뉴스를 찾을 수 없습니다.</div>";
+        })
+        .catch(err => {
+            priceEl.innerHTML = `<div style="color:#ef4444; padding:10px; font-weight:600;">⚠️ 데이터를 불러오는데 실패했습니다: ${err.message}<br><button onclick="loadCompany()" style="margin-top:8px; padding:4px 10px; cursor:pointer; background:#0078d4; color:#fff; border:none; border-radius:4px;">재시도</button></div>`;
+            newsEl.innerHTML = "";
         });
-        
-        if(data.financials && data.financials.length > 0) {
-            let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
-            let fTraces = data.financials.map(row => {
-                let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#f59e0b' : '#0078d4';
-                return {
-                    x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
-                    text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), 
-                    textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#0f172a'}
-                };
-            });
-            Plotly.newPlot('comp-fin', fTraces, { 
-                barmode: 'group', ...chartLayout1Yr, height: 280, 
-                margin:{t:30, b:30, l:45, r:20}, 
-                yaxis: {showgrid: true, gridcolor: '#e2e8f0', automargin: true},
-                legend: {orientation: 'h', y: 1.25} 
-            });
-        } else {
-            document.getElementById('comp-fin').innerHTML = "<div style='padding:20px; color:#64748b; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
-        }
-        
-        let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">${n.title}</a></div>`).join('');
-        document.getElementById('comp-news').innerHTML = newsHtml || "<div style='padding:20px; font-size:12px;'>관련 뉴스를 찾을 수 없습니다.</div>";
-    });
 }
 
 // [Tab 4] 거시경제
