@@ -7,3 +7,4 @@ yfinance
 deep-translator
 pandas-datareader
 setuptools
+fastapi

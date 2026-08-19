@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한솔섬유 대시보드</title>
+    <style>
+        /* 한솔섬유 엔터프라이즈 폰트 및 배경 톤 */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            margin: 0;
+            padding: 40px;
+        }
+
+        /* KPI 카드 스타일 완벽 재현 */
+        .card {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 9px;
+            padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            border-top: 3px solid #2563EB;
+            max-width: 500px;
+        }
+
+        .card h3 {
+            color: #1E3A8A;
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 0;
+            border-left: 4px solid #2563EB;
+            padding-left: 10px;
+        }
+
+        #status-message {
+            font-size: 18px;
+            font-weight: 600;
+            color: #64748B;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 style="color: #1E3A8A;">📊 한솔섬유 Vercel 무중단 대시보드</h2>
+    
+    <div class="card">
+        <h3>백엔드 통신 상태</h3>
+        <p id="status-message">파이썬 서버와 연결을 시도하는 중...</p>
+    </div>
+
+    <script>
+        // 화면이 켜지자마자 파이썬 서버(/api/hello)에 데이터를 요청합니다!
+        fetch('/api/hello')
+            .then(response => response.json())
+            .then(data => {
+                const statusEl = document.getElementById('status-message');
+                statusEl.innerText = data.message;
+                statusEl.style.color = "#059669"; // 성공 시 초록색
+            })
+            .catch(error => {
+                const statusEl = document.getElementById('status-message');
+                statusEl.innerText = "서버 연결에 실패했습니다. (로딩 중이거나 에러)";
+                statusEl.style.color = "#DC2626"; // 실패 시 빨간색
+            });
+    </script>
+
+</body>
+</html>
