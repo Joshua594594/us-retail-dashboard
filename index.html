@@ -4,76 +4,141 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>US Market & RM 통합 대시보드 | 한솔섬유</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-:root { 
-    --bg: #f3f4f6; --canvas: #fff; --panel: #fafbfc; 
-    --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; 
-    --accent: #f2c811; --accent2: #0078d4; 
-    --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; 
+:root {
+    --bg: #F4F1EA;
+    --canvas: #FFFFFF;
+    --panel: #FAF7F0;
+    --ink: #24201A;
+    --muted: #8A8274;
+    --line: #E6DFD1;
+    --accent: #D97757;
+    --accent-soft: rgba(217, 119, 87, 0.10);
+    --accent-line: rgba(217, 119, 87, 0.35);
+    --navy: #3D5A66;
+    --good: #6B8F71;
+    --warn: #C9932F;
+    --bad: #BF5B44;
 }
-body { 
-    font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
     background: var(--bg); color: var(--ink); margin: 0; font-size: 13px;
+    -webkit-font-smoothing: antialiased;
 }
-.topbar { background: #fff; border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;}
-.logo { font-size: 1.1rem; font-weight: 800; color: var(--accent2); display: flex; align-items: center; gap: 8px;}
-.logo-box { background: linear-gradient(135deg, #f2c811, #f59e0b); color: #000; padding: 4px 8px; border-radius: 6px; font-size: 11px; }
+.topbar {
+    background: var(--canvas); border-bottom: 1px solid var(--line);
+    padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+}
+.logo {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 1.05rem; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; letter-spacing: -0.01em;
+}
+.logo-box {
+    background: var(--accent); color: #fff;
+    padding: 5px 9px; border-radius: 5px; font-size: 10px;
+    font-family: 'Inter', sans-serif; font-weight: 700; letter-spacing: 0.04em;
+}
+.status-pill {
+    font-size: 11.5px; font-weight: 600; color: var(--good);
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(107,143,113,0.10); padding: 5px 11px; border-radius: 20px;
+}
+.status-dot {
+    display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--good);
+    box-shadow: 0 0 0 3px rgba(107,143,113,0.18);
+}
 
-.page-tabs { display: flex; background: #fff; border-bottom: 1px solid var(--line); padding: 0 24px; }
-.page-tab { padding: 12px 20px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
-.page-tab:hover { background-color: var(--panel); color: var(--accent2); }
-.page-tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+.page-tabs {
+    display: flex; background: var(--canvas); border-bottom: 1px solid var(--line);
+    padding: 0 28px; gap: 4px; overflow-x: auto;
+}
+.page-tab {
+    padding: 13px 18px; font-size: 13.5px; font-weight: 600; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
+    white-space: nowrap;
+}
+.page-tab:hover { color: var(--ink); }
+.page-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.main { padding: 20px; max-width: 98%; margin: 0 auto; }
+.main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
 .page { display: none; }
-.page.active { display: block; }
+.page.active { display: block; animation: fadein 0.25s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
-.card { background: var(--canvas); border: 1px solid var(--line); border-radius: 6px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.04); margin-bottom: 20px; }
-h3.ctitle { font-size: 14px; font-weight: 700; margin: 0 0 15px 0; color: var(--ink); display: flex; align-items: center; gap: 7px; }
-h3.ctitle::before { content: ''; display: inline-block; width: 3px; height: 12px; background: var(--accent2); border-radius: 2px; }
+.card {
+    background: var(--canvas); border: 1px solid var(--line); border-radius: 10px;
+    padding: 22px 24px; box-shadow: 0 1px 2px rgba(36,32,26,0.04);
+    margin-bottom: 18px;
+}
+h3.ctitle {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 14.5px; font-weight: 600; margin: 0 0 16px 0; color: var(--ink);
+    display: flex; align-items: center; gap: 9px; letter-spacing: -0.005em;
+}
+h3.ctitle::before {
+    content: ''; display: inline-block; width: 3px; height: 13px;
+    background: var(--accent); border-radius: 2px; flex-shrink: 0;
+}
 
-.loader { color: var(--accent2); font-weight: 600; padding: 20px; text-align: center; }
-.metric { font-size: 26px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
-.metric-sub { font-size: 13px; font-weight: 600; }
+.loader { color: var(--muted); font-weight: 500; padding: 24px; text-align: center; font-size: 12.5px; }
+.metric { font-family: 'Noto Serif KR', serif; font-size: 27px; font-weight: 700; color: var(--ink); margin-bottom: 5px; letter-spacing: -0.01em; }
+.metric-sub { font-size: 12.5px; font-weight: 600; }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 
-.table-wrap { overflow-x: auto; margin-top: 10px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { padding: 8px 10px; border: 1px solid var(--line); white-space: nowrap; text-align: right; }
-th { background-color: var(--panel); color: var(--muted); text-align: center; font-weight: 600; }
-tr:hover td { background-color: #f0f9ff; }
+.table-wrap { overflow-x: auto; margin-top: 10px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+th, td { padding: 9px 11px; border: 1px solid var(--line); white-space: nowrap; text-align: right; }
+th {
+    background-color: var(--panel); color: var(--muted); text-align: center;
+    font-weight: 600; font-size: 11px; letter-spacing: 0.01em;
+}
+tr:hover td { background-color: var(--accent-soft); }
 
 tr.clothing-highlight td {
-    background-color: #FEF2F2 !important;
-    border-top: 2px solid #ef4444 !important;
-    border-bottom: 2px solid #ef4444 !important;
+    background-color: rgba(191, 91, 68, 0.07) !important;
+    border-top: 2px solid var(--bad) !important;
+    border-bottom: 2px solid var(--bad) !important;
 }
-tr.clothing-highlight td:first-child {
-    border-left: 2px solid #ef4444 !important;
-}
-tr.clothing-highlight td:last-child {
-    border-right: 2px solid #ef4444 !important;
-}
+tr.clothing-highlight td:first-child { border-left: 2px solid var(--bad) !important; }
+tr.clothing-highlight td:last-child { border-right: 2px solid var(--bad) !important; }
 
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
-select { padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid var(--line); font-family: inherit; font-weight: 600; margin-bottom: 20px; outline: none; min-width: 280px;}
+select {
+    padding: 9px 14px; font-size: 13px; border-radius: 8px; border: 1px solid var(--line);
+    font-family: inherit; font-weight: 600; margin-bottom: 20px; outline: none; min-width: 280px;
+    background: var(--canvas); color: var(--ink); cursor: pointer;
+}
+select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 optgroup { font-weight: 700; color: var(--muted); }
-.news-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
-.news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 13px; }
-.news-item a:hover { color: var(--accent2); text-decoration: underline; }
+
+.news-item { padding: 11px 0; border-bottom: 1px dashed var(--line); }
+.news-item:last-child { border-bottom: none; }
+.news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 12.5px; }
+.news-item a:hover { color: var(--accent); text-decoration: underline; }
 
 .macro-header { font-size: 12px; margin-bottom: 10px; color: var(--muted); }
-.macro-header b { color: var(--ink); }
+.macro-header b { color: var(--ink); font-weight: 700; }
+
+@media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+}
 </style>
 </head>
 <body>
 
 <div class="topbar">
   <div class="logo"><div class="logo-box">PBI</div>한솔섬유 US Market & RM</div>
-  <div style="font-size: 12px; font-weight: 600; color: var(--good); display: flex; align-items: center; gap: 5px;">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);"></span> Vercel 무중단 24H 가동 중
+  <div class="status-pill">
+      <span class="status-dot"></span> Vercel 무중단 24H 가동 중
   </div>
 </div>
 
@@ -143,7 +208,7 @@ optgroup { font-weight: 700; color: var(--muted); }
             <option value="084680.KS|이월드">온타이드 (이월드)</option>
         </optgroup>
     </select>
-    
+
     <div class="grid-2">
         <div class="card" style="margin-bottom: 0;">
             <div class="ctitle">실시간 주가 추세 (최근 1년)</div>
@@ -155,7 +220,7 @@ optgroup { font-weight: 700; color: var(--muted); }
             <div id="comp-fin" style="height: 280px;"></div>
         </div>
     </div>
-    <div class="card" style="margin-top: 16px;">
+    <div class="card" style="margin-top: 18px;">
         <div class="ctitle">관련 최신 뉴스</div>
         <div id="comp-news"></div>
     </div>
@@ -214,7 +279,7 @@ function showTab(tabId, el) {
     document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     el.classList.add('active');
-    
+
     if(tabId === 'tab1' && !window.fredLoaded) { window.fredLoaded=true; loadFred(); }
     if(tabId === 'tab2' && !window.otexaLoaded) { window.otexaLoaded=true; loadOtexa(); }
     if(tabId === 'tab3' && !window.compLoaded) { window.compLoaded=true; loadCompany(); }
@@ -223,59 +288,66 @@ function showTab(tabId, el) {
 
 const chartLayout1Yr = {
     plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+    font: {family: 'Inter, sans-serif', color: '#24201A'},
     margin: {l: 45, r: 25, t: 10, b: 35},
     xaxis: {
         type: 'date', tickformat: '%Y-%m', dtick: 'M1', nticks: 12,
-        showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}
+        showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}
     },
-    yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}}
+    yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}}
 };
 
 const chartLayout5Yr = {
     plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+    font: {family: 'Inter, sans-serif', color: '#24201A'},
     margin: {l: 45, r: 25, t: 10, b: 35},
     xaxis: {
         type: 'date', tickformat: '%Y년', dtick: 'M12',
-        showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}
+        showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}
     },
-    yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}}
+    yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}}
 };
 
 // [Tab 1] FRED
 function loadFred() {
     const ytdEl = document.getElementById('fred-ytd');
-    
+
     fetch('/api/fred')
         .then(r => {
             if(!r.ok) throw new Error("서버 응답 오류 (" + r.status + ")");
             return r.json();
         })
         .then(data => {
-            if(data.error) { 
-                ytdEl.innerHTML = `<div style="color:#ef4444; padding:20px;">⚠️ ${data.error} <br><button onclick="window.fredLoaded=false;loadFred();" style="margin-top:10px; padding:6px 12px; cursor:pointer;">다시 시도</button></div>`; 
-                return; 
+            if(data.error) {
+                ytdEl.innerHTML = `<div style="color:#BF5B44; padding:20px;">⚠️ ${data.error} <br><button onclick="window.fredLoaded=false;loadFred();" style="margin-top:10px; padding:6px 12px; cursor:pointer;">다시 시도</button></div>`;
+                return;
             }
-            
+
             ytdEl.innerHTML = "";
             let cats = Object.keys(data.ytd).reverse();
             let vals = Object.values(data.ytd).reverse();
             let targetIdx = cats.indexOf("Clothing and Clothing Accessories Stores");
-            
+
             let shapes = targetIdx >= 0 ? [{
                 type: 'rect', xref: 'paper', x0: -0.75, x1: 1.08, yref: 'y', y0: targetIdx - 0.45, y1: targetIdx + 0.45,
-                fillcolor: 'rgba(239, 68, 68, 0.12)', line: {color: '#ef4444', width: 2}, layer: 'below'
+                fillcolor: 'rgba(191, 91, 68, 0.10)', line: {color: '#BF5B44', width: 2}, layer: 'below'
             }] : [];
-            
+
             Plotly.newPlot('fred-ytd', [{
                 type: 'bar', x: vals, y: cats, orientation: 'h',
-                marker: {color: vals.map(v => v < 0 ? '#ef4444' : '#38BDF8')},
+                marker: {color: vals.map(v => v < 0 ? '#BF5B44' : '#3D5A66')},
                 text: vals.map(v => v.toFixed(1) + '%'), textposition: 'outside'
-            }], { height: 520, margin: {l: 450, r: 60, t: 10, b: 20}, xaxis: {gridcolor: '#e2e8f0'}, shapes: shapes });
+            }], {
+                height: 520, margin: {l: 450, r: 60, t: 10, b: 20},
+                font: {family: 'Inter, sans-serif', color: '#24201A'},
+                paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+                xaxis: {gridcolor: '#E6DFD1'}, shapes: shapes
+            });
 
             if(data.trend && data.trend.length > 0) {
                 let tDates = data.trend.map(d => d.Date);
                 let tCols = ["Total Retail Trade", "Nonstore Retailers", "Clothing and Clothing Accessories Stores", "Offline"];
-                let tColors = ['#1e3a8a', '#2563eb', '#ef4444', '#059669'];
+                let tColors = ['#3D5A66', '#D97757', '#BF5B44', '#6B8F71'];
                 let lineTraces = tCols.map((col, idx) => ({
                     x: tDates, y: data.trend.map(d => d[col]),
                     name: col, type: 'scatter', mode: 'lines+markers', line: {color: tColors[idx], width: 2}
@@ -290,11 +362,11 @@ function loadFred() {
                 let trs = tableData.map(row => {
                     let isClothing = row["Category"] === "Clothing and Clothing Accessories Stores";
                     let trClass = isClothing ? 'class="clothing-highlight"' : '';
-                    
+
                     let tds = cols.map((c, i) => {
                         if (c === "Category") return `<td style="text-align:left; font-weight:600;">${row[c]}</td>`;
                         let val = row[c];
-                        let color = val < 0 ? 'color: #ef4444;' : 'color: #0f172a;';
+                        let color = val < 0 ? 'color: #BF5B44;' : 'color: #24201A;';
                         return `<td style="${color}">${val.toFixed(1)}%</td>`;
                     }).join('');
                     return `<tr ${trClass}>${tds}</tr>`;
@@ -303,7 +375,7 @@ function loadFred() {
             }
         })
         .catch(err => {
-            ytdEl.innerHTML = `<div style="color:#ef4444; padding:20px; font-weight:600;">⚠️ FRED 데이터를 불러오는데 실패했습니다: ${err.message}<br><button onclick="window.fredLoaded=false;loadFred();" style="margin-top:10px; padding:6px 12px; cursor:pointer; background:#0078d4; color:#fff; border:none; border-radius:4px;">새로고침 재시도</button></div>`;
+            ytdEl.innerHTML = `<div style="color:#BF5B44; padding:20px; font-weight:600;">⚠️ FRED 데이터를 불러오는데 실패했습니다: ${err.message}<br><button onclick="window.fredLoaded=false;loadFred();" style="margin-top:10px; padding:6px 12px; cursor:pointer; background:#D97757; color:#fff; border:none; border-radius:6px;">새로고침 재시도</button></div>`;
         });
 }
 
@@ -312,47 +384,52 @@ function loadOtexa() {
     fetch('/api/otexa').then(r=>r.json()).then(data => {
         if(data.error) { document.getElementById('otexa-share').innerHTML = data.error; return; }
         document.getElementById('otexa-share').innerHTML = "";
-        
-        let colors = ['#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#eff6ff'];
+
+        let colors = ['#3D5A66', '#5C7F8C', '#D97757', '#E2A183', '#C9932F', '#DDC38A'];
         let traces = data.years.map((year, i) => ({
             x: data.share.map(d => d.Country), y: data.share.map(d => d[year]),
             name: year, type: 'bar', marker: {color: colors[i % colors.length]},
-            text: data.share.map(d => d[year] ? d[year].toFixed(1) + '%' : ''), 
+            text: data.share.map(d => d[year] ? d[year].toFixed(1) + '%' : ''),
             textposition: 'auto', textfont: {size: 10}
         }));
-        Plotly.newPlot('otexa-share', traces, { barmode: 'group', height: 350, plot_bgcolor: '#fff', legend: {orientation: 'h', y: -0.2} });
+        Plotly.newPlot('otexa-share', traces, {
+            barmode: 'group', height: 350, plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+            font: {family: 'Inter, sans-serif', color: '#24201A'},
+            legend: {orientation: 'h', y: -0.2}
+        });
 
         let target7 = ['World', 'China', 'Vietnam', 'Indonesia', 'Cambodia', 'Guatemala', 'Nicaragua'];
         let colorMap = {
-            'World': '#64748b', 'China': '#b45309', 'Vietnam': '#059669', 
-            'Indonesia': '#0284c7', 'Cambodia': '#1d4ed8', 'Guatemala': '#0d9488', 'Nicaragua': '#dc2626'
+            'World': '#8A8274', 'China': '#BF5B44', 'Vietnam': '#6B8F71',
+            'Indonesia': '#3D5A66', 'Cambodia': '#D97757', 'Guatemala': '#8B7355', 'Nicaragua': '#C9932F'
         };
-        
+
         let yoyDataAll = data.yoy;
         if(yoyDataAll && yoyDataAll.length > 0) {
             let dateCols = Object.keys(yoyDataAll[0]).filter(k => k !== 'Country');
-            
+
             let lineTraces = target7.map(countryName => {
                 let countryRow = yoyDataAll.find(d => d.Country === countryName);
                 if (!countryRow) return null;
                 return {
                     x: dateCols, y: dateCols.map(c => countryRow[c]),
                     name: countryName, type: 'scatter', mode: 'lines+markers',
-                    line: {color: colorMap[countryName] || '#64748b', width: 2.5},
+                    line: {color: colorMap[countryName] || '#8A8274', width: 2.5},
                     marker: {size: 5}
                 };
             }).filter(t => t !== null);
-            
-            Plotly.newPlot('otexa-yoy-line', lineTraces, { 
-                plot_bgcolor: '#fff', paper_bgcolor: '#fff', height: 320, 
+
+            Plotly.newPlot('otexa-yoy-line', lineTraces, {
+                plot_bgcolor: '#fff', paper_bgcolor: '#fff', height: 320,
+                font: {family: 'Inter, sans-serif', color: '#24201A'},
                 margin: {l: 45, r: 25, t: 10, b: 40},
-                xaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}},
-                yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}},
-                legend: {orientation: 'h', y: -0.25} 
+                xaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}},
+                yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}},
+                legend: {orientation: 'h', y: -0.25}
             });
 
             let ths = ['Country', ...dateCols].map(c => `<th>${c}</th>`).join('');
-            let defaultColors = ['#475569', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6', '#14b8a6'];
+            let defaultColors = ['#5C5347', '#3D5A66', '#6B8F71', '#C9932F', '#7B6C8E', '#B5567F', '#8B7355', '#3F8F8A'];
 
             let trs = yoyDataAll.map((row, idx) => {
                 let bg = colorMap[row.Country] || defaultColors[idx % defaultColors.length];
@@ -378,9 +455,9 @@ function loadCompany() {
     chartEl.innerHTML = "";
     finEl.innerHTML = "";
     newsEl.innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
-    
+
     let val = document.getElementById('companySelect').value.split('|');
-    
+
     fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`)
         .then(r => {
             if(!r.ok) throw new Error("서버 응답 오류 (" + r.status + ")");
@@ -390,43 +467,43 @@ function loadCompany() {
             let pColor = data.mom >= 0 ? 'pos' : 'neg';
             let pSign = data.mom >= 0 ? '+' : '';
             let currSym = data.currency === "KRW" ? "₩" : data.currency === "JPY" ? "¥" : data.currency === "CAD" ? "CA$" : "$";
-            
+
             priceEl.innerHTML = `
                 <div class="metric">${currSym} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
                 <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
             `;
-            
+
             let dates = data.history.map(d => d.date);
             let closes = data.history.map(d => d.close);
-            Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { 
-                ...chartLayout1Yr, height: 220, margin: {t:10, b:35, l:50, r:20} 
+            Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#D97757', width: 2} }], {
+                ...chartLayout1Yr, height: 220, margin: {t:10, b:35, l:50, r:20}
             });
-            
+
             if(data.financials && data.financials.length > 0) {
                 let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
                 let fTraces = data.financials.map(row => {
-                    let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#f59e0b' : '#0078d4';
+                    let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#C9932F' : '#3D5A66';
                     return {
                         x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
-                        text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), 
-                        textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#0f172a'}
+                        text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'),
+                        textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#24201A'}
                     };
                 });
-                Plotly.newPlot('comp-fin', fTraces, { 
-                    barmode: 'group', ...chartLayout1Yr, height: 280, 
-                    margin:{t:30, b:30, l:45, r:20}, 
-                    yaxis: {showgrid: true, gridcolor: '#e2e8f0', automargin: true},
-                    legend: {orientation: 'h', y: 1.25} 
+                Plotly.newPlot('comp-fin', fTraces, {
+                    barmode: 'group', ...chartLayout1Yr, height: 280,
+                    margin:{t:30, b:30, l:45, r:20},
+                    yaxis: {showgrid: true, gridcolor: '#E6DFD1', automargin: true},
+                    legend: {orientation: 'h', y: 1.25}
                 });
             } else {
-                finEl.innerHTML = "<div style='padding:20px; color:#64748b; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
+                finEl.innerHTML = "<div style='padding:20px; color:#8A8274; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
             }
-            
+
             let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">${n.title}</a></div>`).join('');
             newsEl.innerHTML = newsHtml || "<div style='padding:20px; font-size:12px;'>관련 뉴스를 찾을 수 없습니다.</div>";
         })
         .catch(err => {
-            priceEl.innerHTML = `<div style="color:#ef4444; padding:10px; font-weight:600;">⚠️ 데이터를 불러오는데 실패했습니다: ${err.message}<br><button onclick="loadCompany()" style="margin-top:8px; padding:4px 10px; cursor:pointer; background:#0078d4; color:#fff; border:none; border-radius:4px;">재시도</button></div>`;
+            priceEl.innerHTML = `<div style="color:#BF5B44; padding:10px; font-weight:600;">⚠️ 데이터를 불러오는데 실패했습니다: ${err.message}<br><button onclick="loadCompany()" style="margin-top:8px; padding:4px 10px; cursor:pointer; background:#D97757; color:#fff; border:none; border-radius:6px;">재시도</button></div>`;
             newsEl.innerHTML = "";
         });
 }
@@ -441,31 +518,31 @@ function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false, is5Yr=
     let pSign = d.chg >= 0 ? '+' : '';
     let pColor = d.chg >= 0 ? 'pos' : 'neg';
     document.getElementById(`m-${id}-text`).innerHTML = `시작: <b>${prefix}${d.start.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> ➔ 최신: <b>${prefix}${d.end.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> (<span class="${pColor}">${pSign}${d.chg.toFixed(1)}%</span>)`;
-    
+
     let trace = { x: d.history.map(x=>x.d), y: d.history.map(x=>x.v), type: 'scatter', line: {color: color, width: 2} };
-    if(isArea) { trace.fill = 'tozeroy'; }
+    if(isArea) { trace.fill = 'tozeroy'; trace.fillcolor = color.startsWith('#') ? color + '1A' : color; }
     document.getElementById(`m-${id}-chart`).innerHTML = "";
-    
+
     let targetLayout = is5Yr ? chartLayout5Yr : chartLayout1Yr;
     Plotly.newPlot(`m-${id}-chart`, [trace], { ...targetLayout, height: 220 });
 }
 
 function loadMacro() {
     fetch('/api/macro').then(r=>r.json()).then(data => {
-        drawMacroChart('krw', data.krw, '#0078d4', '', '원', false, false);
-        drawMacroChart('cotton', data.cotton, '#f59e0b', '$', '', false, false);
-        drawMacroChart('wti', data.wti, '#1e3a8a', '$', '', false, false);
-        
-        drawMacroChart('gdp', data.gdp, '#a78bfa', '', '', false, true);
-        drawMacroChart('cpi', data.cpi, '#f59e0b', '', '', false, true);
-        drawMacroChart('inv', data.inv, '#22c55e', '', '개월', true, true);
-        drawMacroChart('sales', data.sales, '#ef4444', '$', 'M', false, true);
-        
+        drawMacroChart('krw', data.krw, '#3D5A66', '', '원', false, false);
+        drawMacroChart('cotton', data.cotton, '#C9932F', '$', '', false, false);
+        drawMacroChart('wti', data.wti, '#8B7355', '$', '', false, false);
+
+        drawMacroChart('gdp', data.gdp, '#7B6C8E', '', '', false, true);
+        drawMacroChart('cpi', data.cpi, '#C9932F', '', '', false, true);
+        drawMacroChart('inv', data.inv, '#6B8F71', '', '개월', true, true);
+        drawMacroChart('sales', data.sales, '#BF5B44', '$', 'M', false, true);
+
         if(data.us_rate && data.kr_rate) {
             let us = data.us_rate, kr = data.kr_rate;
             document.getElementById('m-rate-text').innerHTML = `최신 미국 금리: <b>${us.end.toFixed(2)}%</b> | 한국: <b>${kr.end.toFixed(2)}%</b>`;
-            let tUS = { x: us.history.map(x=>x.d), y: us.history.map(x=>x.v), name: '미국', type: 'scatter', line: {color: '#ef4444', width: 2} };
-            let tKR = { x: kr.history.map(x=>x.d), y: kr.history.map(x=>x.v), name: '한국', type: 'scatter', line: {color: '#0078d4', width: 2} };
+            let tUS = { x: us.history.map(x=>x.d), y: us.history.map(x=>x.v), name: '미국', type: 'scatter', line: {color: '#BF5B44', width: 2} };
+            let tKR = { x: kr.history.map(x=>x.d), y: kr.history.map(x=>x.v), name: '한국', type: 'scatter', line: {color: '#3D5A66', width: 2} };
             document.getElementById('m-rate-chart').innerHTML = "";
             Plotly.newPlot('m-rate-chart', [tUS, tKR], { ...chartLayout5Yr, height: 220, showlegend: true, legend: {orientation: 'h', y: 1.15} });
         } else {
