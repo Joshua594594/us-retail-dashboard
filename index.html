@@ -4,37 +4,62 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>US Market & RM 통합 대시보드 | 한솔섬유</title>
+<!-- Plotly.js 차트 라이브러리 -->
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
-:root { --bg: #F8FAFC; --bg2: #FFFFFF; --border: #E2E8F0; --txt: #0F172A; --txt2: #64748B; --blue: #2563EB; --blue-d: #1E3A8A; }
+:root { 
+    --bg: #F8FAFC; --bg2: #FFFFFF; --border: #E2E8F0; 
+    --txt: #0F172A; --txt2: #64748B; 
+    --blue: #2563EB; --blue-d: #1E3A8A; 
+    --green: #059669; --red: #DC2626; --amber: #D97706;
+}
 body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--txt); margin: 0; }
 .topbar { background: var(--blue-d); color: #fff; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
 .logo { font-size: 1.2rem; font-weight: 700; }
-.page-tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 24px; }
+.page-tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 24px; position: sticky; top: 0; z-index: 100; }
 .page-tab { padding: 14px 24px; font-size: 15px; font-weight: 600; color: var(--txt2); cursor: pointer; border-bottom: 4px solid transparent; transition: all 0.2s; }
 .page-tab:hover { background-color: #F1F5F9; }
 .page-tab.active { color: var(--blue-d); border-bottom-color: var(--blue); }
+
 .main { padding: 28px; max-width: 1400px; margin: 0 auto; }
 .page { display: none; }
 .page.active { display: block; }
+
 .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px; border-top: 3px solid var(--blue); }
 h3.ctitle { font-size: 16px; font-weight: 700; margin: 0 0 15px 0; border-left: 4px solid var(--blue); padding-left: 10px; }
-.loader { color: var(--blue); font-weight: 600; padding: 20px; }
-.metric { font-size: 32px; font-weight: 800; color: var(--txt); }
+.loader { color: var(--blue); font-weight: 600; padding: 20px; text-align: center; }
+
+/* 텍스트 메트릭 */
+.metric { font-size: 28px; font-weight: 800; color: var(--txt); }
 .metric-sub { font-size: 14px; font-weight: 600; }
-.pos { color: #059669; } .neg { color: #DC2626; }
-select { padding: 8px 12px; font-size: 15px; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; }
-.news-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
-.news-item a { color: var(--blue); text-decoration: none; font-weight: 500; }
-.news-item a:hover { text-decoration: underline; }
+.pos { color: var(--green); } .neg { color: var(--red); }
+
+/* 표(Table) 스타일 */
+.table-wrap { overflow-x: auto; margin-top: 15px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; }
+th, td { padding: 10px; border: 1px solid var(--border); white-space: nowrap; }
+th { background-color: var(--blue-d); color: #fff; text-align: center; font-weight: 600; position: sticky; top: 0; }
+tr:nth-child(even) { background-color: #F8FAFC; }
+tr:hover { background-color: #EFF6FF; }
+
+/* 레이아웃 그리드 */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+select { padding: 8px 12px; font-size: 15px; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; margin-bottom: 20px; outline: none; }
+.news-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.news-item a { color: var(--blue-d); text-decoration: none; font-weight: 500; font-size: 14.5px; }
+.news-item a:hover { text-decoration: underline; color: var(--blue); }
+
+.macro-header { font-size: 14px; margin-bottom: 10px; color: var(--txt2); }
+.macro-header b { color: var(--txt); }
 </style>
 </head>
 <body>
 
 <div class="topbar">
   <div class="logo">📊 한솔섬유 US Market & RM 통합 대시보드</div>
-  <div style="font-size: 12px; color: #60A5FA;">🟢 Vercel 무중단 24H 가동 중</div>
+  <div style="font-size: 12px; color: #60A5FA; font-weight: 600;">🟢 Vercel 무중단 24H 가동 중</div>
 </div>
 
 <div class="page-tabs">
@@ -45,140 +70,286 @@ select { padding: 8px 12px; font-size: 15px; border-radius: 6px; border: 1px sol
 </div>
 
 <div class="main">
-  <!-- TAB 1 -->
+  <!-- TAB 1: FRED 소매 판매 -->
   <div id="tab1" class="page active">
     <div class="card">
         <h3 class="ctitle">미국 소매 카테고리 별 성장률 (YTD)</h3>
-        <div id="fred-chart1" class="loader">데이터 수집 중... (약 5초 소요)</div>
+        <div id="fred-ytd" class="loader">FRED 데이터 분석 중... (약 5~10초 소요)</div>
+    </div>
+    <div class="card">
+        <h3 class="ctitle">미국 소매 카테고리 별 전년 동월대비 증감률 (YoY %)</h3>
+        <div id="fred-yoy" class="table-wrap"></div>
     </div>
   </div>
 
-  <!-- TAB 2 -->
+  <!-- TAB 2: OTEXA 수입 데이터 -->
   <div id="tab2" class="page">
     <div class="card">
         <h3 class="ctitle">미국 의류 수입 국가별 비중 (%)</h3>
-        <div id="otexa-msg" class="loader">데이터 불러오는 중...</div>
-        <div id="otexa-chart"></div>
+        <div id="otexa-share" class="loader">OTEXA 데이터 로딩 중...</div>
+    </div>
+    <div class="card">
+        <h3 class="ctitle">미국 의류 수입 국가별 전년 동월대비 증감률 (YoY %)</h3>
+        <div id="otexa-yoy" class="table-wrap"></div>
     </div>
   </div>
 
-  <!-- TAB 3 -->
+  <!-- TAB 3: 기업 모니터링 -->
   <div id="tab3" class="page">
-    <div style="margin-bottom: 20px;">
-        <select id="companySelect" onchange="loadCompany()">
-            <option value="WMT|Walmart">Walmart (월마트)</option>
-            <option value="TGT|Target">Target (타겟)</option>
-            <option value="VSCO|Victoria's Secret">Victoria's Secret (빅토리아 시크릿)</option>
-            <option value="ANF|Abercrombie">Abercrombie & Fitch (아베크롬비)</option>
-        </select>
+    <select id="companySelect" onchange="loadCompany()">
+        <option value="WMT|Walmart">Walmart (월마트)</option>
+        <option value="TGT|Target">Target (타겟)</option>
+        <option value="KSS|Kohl's">Kohl's (콜스)</option>
+        <option value="VSCO|Victoria's Secret">Victoria's Secret (빅토리아 시크릿)</option>
+        <option value="ANF|Abercrombie">Abercrombie & Fitch (아베크롬비)</option>
+        <option value="CRI|Carter's">Carter's (카터스)</option>
+        <option value="9983.T|Fast Retailing">Fast Retailing (유니클로)</option>
+        <option value="UA|Under Armour">Under Armour (언더아머)</option>
+        <option value="AMZN|Amazon">Amazon (아마존)</option>
+    </select>
+    
+    <div class="grid-2">
+        <div class="card" style="margin-bottom: 0;">
+            <h3 class="ctitle">실시간 주가 추세 (최근 1년)</h3>
+            <div id="comp-price" style="margin-bottom: 15px;"></div>
+            <div id="comp-chart"></div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+            <h3 class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</h3>
+            <div id="comp-fin" style="height: 350px;"></div>
+        </div>
     </div>
-    <div class="card">
-        <h3 class="ctitle">실시간 주가</h3>
-        <div id="comp-price" class="loader">로딩 중...</div>
-        <div id="comp-chart"></div>
-    </div>
-    <div class="card">
+    <div class="card" style="margin-top: 20px;">
         <h3 class="ctitle">관련 최신 뉴스</h3>
-        <div id="comp-news" class="loader">로딩 중...</div>
+        <div id="comp-news"></div>
     </div>
   </div>
 
-  <!-- TAB 4 -->
+  <!-- TAB 4: 거시경제 및 원가 -->
   <div id="tab4" class="page">
-    <div class="card">
-        <h3 class="ctitle">원/달러 환율 (최근 1년)</h3>
-        <div id="macro-krw" class="loader">로딩 중...</div>
+    <div class="grid-2">
+        <div class="card">
+            <h3 class="ctitle">💱 원/달러 환율 (최근 1년)</h3>
+            <div id="m-krw-text" class="macro-header"></div>
+            <div id="m-krw-chart" class="loader">데이터 불러오는 중...</div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">🏦 한·미 기준금리 추이 (최근 5년)</h3>
+            <div id="m-rate-text" class="macro-header"></div>
+            <div id="m-rate-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">🌱 글로벌 면화 선물 가격 (최근 1년)</h3>
+            <div id="m-cotton-text" class="macro-header"></div>
+            <div id="m-cotton-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">⚓ WTI 국제 유가 (최근 1년)</h3>
+            <div id="m-wti-text" class="macro-header"></div>
+            <div id="m-wti-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">🏢 미국 실질 GDP (최근 5년)</h3>
+            <div id="m-gdp-text" class="macro-header"></div>
+            <div id="m-gdp-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">👕 미국 의류 소비자물가지수 (CPI)</h3>
+            <div id="m-cpi-text" class="macro-header"></div>
+            <div id="m-cpi-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">📦 미국 의류 소매재고율</h3>
+            <div id="m-inv-text" class="macro-header"></div>
+            <div id="m-inv-chart"></div>
+        </div>
+        <div class="card">
+            <h3 class="ctitle">🛍️ 미국 의류 소매 판매액</h3>
+            <div id="m-sales-text" class="macro-header"></div>
+            <div id="m-sales-chart"></div>
+        </div>
     </div>
   </div>
 </div>
 
 <script>
-// 탭 전환 기능
+// --- 공통 탭 스크립트 ---
 function showTab(tabId, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     el.classList.add('active');
     
-    // 탭 누를 때 최초 로딩
     if(tabId === 'tab1' && !window.fredLoaded) { window.fredLoaded=true; loadFred(); }
     if(tabId === 'tab2' && !window.otexaLoaded) { window.otexaLoaded=true; loadOtexa(); }
     if(tabId === 'tab3' && !window.compLoaded) { window.compLoaded=true; loadCompany(); }
     if(tabId === 'tab4' && !window.macroLoaded) { window.macroLoaded=true; loadMacro(); }
 }
 
-// [Tab 1] FRED
+// --- 공통 차트 레이아웃 ---
+const chartLayout = {
+    plot_bgcolor: 'white', paper_bgcolor: 'white',
+    margin: {l: 40, r: 20, t: 10, b: 30},
+    xaxis: {showgrid: true, gridcolor: '#E2E8F0'},
+    yaxis: {showgrid: true, gridcolor: '#E2E8F0'}
+};
+
+// --- [Tab 1] FRED 소매판매 ---
 function loadFred() {
     fetch('/api/fred').then(r=>r.json()).then(data => {
-        if(data.error) { document.getElementById('fred-chart1').innerHTML = data.error; return; }
-        document.getElementById('fred-chart1').innerHTML = "";
+        if(data.error) { document.getElementById('fred-ytd').innerHTML = data.error; return; }
         
-        let cats = Object.keys(data.ytd);
-        let vals = Object.values(data.ytd);
+        // 1. YTD Bar Chart
+        document.getElementById('fred-ytd').innerHTML = "";
+        let cats = Object.keys(data.ytd).reverse();
+        let vals = Object.values(data.ytd).reverse();
         
-        Plotly.newPlot('fred-chart1', [{
+        Plotly.newPlot('fred-ytd', [{
             type: 'bar', x: vals, y: cats, orientation: 'h',
             marker: {color: vals.map(v => v < 0 ? '#DC2626' : '#2563EB')},
             text: vals.map(v => v.toFixed(1) + '%'), textposition: 'outside'
-        }], { height: 500, margin: {l: 250}, xaxis: {gridcolor: '#E2E8F0'} });
-    });
-}
+        }], { height: 600, margin: {l: 350, r: 50, t: 10, b: 20}, xaxis: {gridcolor: '#E2E8F0'} });
 
-// [Tab 2] OTEXA
-function loadOtexa() {
-    fetch('/api/otexa').then(r=>r.json()).then(data => {
-        if(data.error) { document.getElementById('otexa-msg').innerHTML = "<span class='neg'>" + data.error + " (깃허브에 CSV 파일이 있는지 확인하세요!)</span>"; return; }
-        document.getElementById('otexa-msg').style.display = "none";
-        
-        let traces = data.years.map((year, i) => {
-            return {
-                x: data.share.map(d => d.Country),
-                y: data.share.map(d => d[year]),
-                name: year, type: 'bar'
-            };
-        });
-        Plotly.newPlot('otexa-chart', traces, { barmode: 'group', height: 400 });
-    });
-}
-
-// [Tab 3] 기업 모니터링
-function loadCompany() {
-    document.getElementById('comp-price').innerHTML = "로딩 중...";
-    document.getElementById('comp-news').innerHTML = "로딩 중...";
-    let val = document.getElementById('companySelect').value.split('|');
-    
-    fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`).then(r=>r.json()).then(data => {
-        let pColor = data.mom >= 0 ? 'pos' : 'neg';
-        let pSign = data.mom >= 0 ? '+' : '';
-        document.getElementById('comp-price').innerHTML = `
-            <div class="metric">$ ${data.price.toFixed(2)}</div>
-            <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (MoM)</div>
-        `;
-        
-        let dates = data.history.map(d => d.date);
-        let closes = data.history.map(d => d.close);
-        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#2563EB'} }], {height: 300, margin:{t:10}});
-        
-        let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">📰 ${n.title}</a></div>`).join('');
-        document.getElementById('comp-news').innerHTML = newsHtml || "최신 뉴스가 없습니다.";
-    });
-}
-
-// [Tab 4] 거시경제
-function loadMacro() {
-    fetch('/api/macro').then(r=>r.json()).then(data => {
-        if(data.krw) {
-            document.getElementById('macro-krw').innerHTML = "";
-            let dates = data.krw.history.map(d => d.d);
-            let vals = data.krw.history.map(d => d.v);
-            Plotly.newPlot('macro-krw', [{ x: dates, y: vals, type: 'scatter', line: {color: '#D97706'} }], {height: 300, margin:{t:10}});
-        } else {
-            document.getElementById('macro-krw').innerHTML = "야후 파이낸스에서 일시적으로 거부됨";
+        // 2. YoY Table
+        let tableData = data.table;
+        if(tableData.length > 0) {
+            let cols = Object.keys(tableData[0]);
+            let ths = cols.map(c => `<th>${c}</th>`).join('');
+            let trs = tableData.map(row => {
+                let isClothing = false; // 의류 강조 효과용
+                let tds = cols.map((c, i) => {
+                    if (c === "Date") return `<td style="text-align:center; font-weight:bold;">${row[c]}</td>`;
+                    let val = row[c];
+                    let color = val < 0 ? 'color: #DC2626;' : 'color: #0F172A;';
+                    if (c === "Clothing and Clothing Accessories Stores") isClothing = true;
+                    return `<td style="${color}">${val.toFixed(1)}%</td>`;
+                }).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            document.getElementById('fred-yoy').innerHTML = `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
         }
     });
 }
 
-// 시작할 때 1번 탭 실행
+// --- [Tab 2] OTEXA 수입 데이터 ---
+function loadOtexa() {
+    fetch('/api/otexa').then(r=>r.json()).then(data => {
+        if(data.error) { document.getElementById('otexa-share').innerHTML = data.error; return; }
+        document.getElementById('otexa-share').innerHTML = "";
+        
+        // 1. Share Bar Chart
+        let colors = ['#1E3A8A', '#2563EB', '#60A5FA', '#93C5FD', '#BFDBFE', '#EFF6FF'];
+        let traces = data.years.map((year, i) => ({
+            x: data.share.map(d => d.Country), y: data.share.map(d => d[year]),
+            name: year, type: 'bar', marker: {color: colors[i % colors.length]},
+            text: data.share.map(d => d[year] ? d[year].toFixed(1) + '%' : ''), textposition: 'outside'
+        }));
+        Plotly.newPlot('otexa-share', traces, { barmode: 'group', height: 400, plot_bgcolor: 'white', legend: {orientation: 'h', y: -0.15} });
+
+        // 2. YoY Table
+        let yoyData = data.yoy;
+        if(yoyData.length > 0) {
+            let cols = Object.keys(yoyData[0]);
+            let ths = cols.map(c => `<th>${c}</th>`).join('');
+            let bgMap = {'World': '#64748B', 'China': '#D97706', 'Vietnam': '#059669', 'Indonesia': '#2563EB', 'Cambodia': '#1E3A8A', 'Nicaragua': '#DC2626', 'Guatemala': '#0D9488'};
+            
+            let trs = yoyData.map(row => {
+                let bg = bgMap[row.Country] || '#FFFFFF';
+                let tds = cols.map((c, i) => {
+                    if(i === 0) return `<td style="background-color:${bg}; color:white; font-weight:bold; text-align:center;">${row[c]}</td>`;
+                    return `<td style="background-color:${bg}; color:white; font-weight:bold;">${row[c] ? row[c].toFixed(1)+'%' : '-'}</td>`;
+                }).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            document.getElementById('otexa-yoy').innerHTML = `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+        }
+    });
+}
+
+// --- [Tab 3] 기업 모니터링 ---
+function loadCompany() {
+    document.getElementById('comp-price').innerHTML = "<div class='loader'>주가 데이터 로딩 중...</div>";
+    document.getElementById('comp-chart').innerHTML = "";
+    document.getElementById('comp-fin').innerHTML = "<div class='loader'>재무 데이터 로딩 중...</div>";
+    document.getElementById('comp-news').innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
+    
+    let val = document.getElementById('companySelect').value.split('|');
+    
+    fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`).then(r=>r.json()).then(data => {
+        // 1. Price
+        let pColor = data.mom >= 0 ? 'pos' : 'neg';
+        let pSign = data.mom >= 0 ? '+' : '';
+        let curr = val[0].includes('.T') ? '¥' : val[0].includes('.K') ? '₩' : '$';
+        document.getElementById('comp-price').innerHTML = `
+            <div class="metric">${curr} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+            <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
+        `;
+        
+        // 2. Price Chart
+        let dates = data.history.map(d => d.date);
+        let closes = data.history.map(d => d.close);
+        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#2563EB', width: 2} }], { ...chartLayout, height: 250, margin: {t:0, b:30, l:50, r:20} });
+        
+        // 3. Financials (QoQ) Chart
+        if(data.financials && data.financials.length > 0) {
+            let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
+            let fTraces = data.financials.map(row => {
+                let color = row.index.includes('영업이익') ? '#D97706' : '#1E3A8A';
+                return {
+                    x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
+                    text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), textposition: 'outside'
+                };
+            });
+            Plotly.newPlot('comp-fin', fTraces, { barmode: 'group', ...chartLayout, height: 350, legend: {orientation: 'h', y: 1.1} });
+        } else {
+            document.getElementById('comp-fin').innerHTML = "<div style='padding:20px; color:#64748B;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
+        }
+        
+        // 4. News
+        let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">📰 ${n.title}</a></div>`).join('');
+        document.getElementById('comp-news').innerHTML = newsHtml || "<div style='padding:20px;'>관련 뉴스를 찾을 수 없습니다.</div>";
+    });
+}
+
+// --- [Tab 4] 거시경제 및 원가 ---
+function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false, isRate=false) {
+    if(!d) {
+        document.getElementById(`m-${id}-text`).innerHTML = "데이터 연동 지연";
+        document.getElementById(`m-${id}-chart`).innerHTML = "";
+        return;
+    }
+    let pSign = d.chg >= 0 ? '+' : '';
+    let pColor = d.chg >= 0 ? 'pos' : 'neg';
+    document.getElementById(`m-${id}-text`).innerHTML = `시작: <b>${prefix}${d.start.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> ➔ 최신: <b>${prefix}${d.end.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> (<span class="${pColor}">${pSign}${d.chg.toFixed(1)}%</span>)`;
+    
+    let trace = { x: d.history.map(x=>x.d), y: d.history.map(x=>x.v), type: 'scatter', line: {color: color, width: 2.5} };
+    if(isArea) { trace.fill = 'tozeroy'; }
+    Plotly.newPlot(`m-${id}-chart`, [trace], { ...chartLayout, height: 260 });
+}
+
+function loadMacro() {
+    fetch('/api/macro').then(r=>r.json()).then(data => {
+        document.getElementById('m-krw-chart').innerHTML = ""; // 로딩텍스트 제거
+        drawMacroChart('krw', data.krw, '#2563EB', '', '원');
+        drawMacroChart('cotton', data.cotton, '#D97706', '$', '');
+        drawMacroChart('wti', data.wti, '#1E3A8A', '$', '');
+        drawMacroChart('gdp', data.gdp, '#7C3AED', '', '');
+        drawMacroChart('cpi', data.cpi, '#D97706', '', '');
+        drawMacroChart('inv', data.inv, '#059669', '', '개월', true);
+        drawMacroChart('sales', data.sales, '#DC2626', '$', 'M');
+        
+        // 한·미 기준금리는 2개의 라인이 들어가므로 별도 처리
+        if(data.us_rate) {
+            let us = data.us_rate;
+            let kr = data.kr_rate; // api/index.py에서 제공 안될 수 있음, 만약 있다면 처리.
+            document.getElementById('m-rate-text').innerHTML = `최신 미국 금리: <b>${us.end.toFixed(2)}%</b>`;
+            let tUS = { x: us.history.map(x=>x.d), y: us.history.map(x=>x.v), name: '미국', type: 'scatter', line: {color: '#DC2626', width: 2.5} };
+            Plotly.newPlot('m-rate-chart', [tUS], { ...chartLayout, height: 260, showlegend: true, legend: {orientation: 'h', y: 1.1} });
+        }
+    });
+}
+
+// 스크립트 로드 완료 후 1번 탭 자동 실행
 loadFred();
 </script>
 </body>
