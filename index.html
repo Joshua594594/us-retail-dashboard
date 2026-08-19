@@ -1,203 +1,383 @@
-import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import numpy as np
-import yfinance as yf
-
-# ==========================================
-# 1. 페이지 설정
-# ==========================================
-st.set_page_config(page_title="Hansoll Market & Trade Dashboard", layout="wide")
-
-# ==========================================
-# 🎨 한솔섬유 엔터프라이즈 HTML 디자인 완벽 이식 (초강력 CSS)
-# ==========================================
-DESIGN_CSS = """
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>US Market & RM 통합 대시보드 | 한솔섬유</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-
-/* 전체 배경 및 폰트 설정 (첨부 HTML과 동일) */
+/* 한솔섬유 원본 CSS 디자인 변수 및 세팅 */
 :root {
-  --bg: #F0F4FA; 
-  --bg2: #FFFFFF; 
-  --bg3: #F5F7FB; 
-  --bg4: #EBF0F9;
-  --border: rgba(59,103,186,0.13); 
-  --border2: rgba(59,103,186,0.07);
-  --txt: #1A253C; 
-  --txt2: #4A5E82; 
-  --txt3: #8A9BBB;
-  --blue: #2563EB; 
-  --blue-d: #1E3A8A;
-  --cyan: #0284C7;
-  --good: #059669; 
-  --warn: #D97706; 
-  --bad: #DC2626;
+  --bg: #f3f4f6; --canvas: #fff; --panel: #fafbfc; 
+  --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; 
+  --accent: #f2c811; --accent2: #0078d4; 
+  --good: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; background: var(--bg); color: var(--ink); 
+  font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
+  font-size: 13px;
 }
 
-/* 스트림릿 고유의 여백 및 배경색 무력화 */
-.stApp { background-color: var(--bg) !important; }
-.block-container { 
-    padding-top: 2rem !important; 
-    padding-bottom: 3rem !important; 
-    max-width: 95% !important; /* 와이드 화면 꽉 차게 */
-    font-family: 'Inter', 'Noto Sans KR', sans-serif !important;
-    color: var(--txt) !important;
+/* 상단 네비게이션 바 */
+.topbar {
+  background: #fff; border-bottom: 1px solid var(--line); 
+  padding: 10px 16px; display: flex; align-items: center; 
+  gap: 14px; position: sticky; top: 0; z-index: 20;
 }
+.topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); }
+.topbar .brand .logo {
+  width: 28px; height: 28px; 
+  background: linear-gradient(135deg, #f2c811, #f59e0b); 
+  border-radius: 6px; display: flex; align-items: center; justify-content: center; 
+  color: #000; font-weight: 800; font-size: 11px;
+}
+.topbar .pages { display: flex; gap: 4px; margin-left: 20px; flex-wrap: wrap; }
+.topbar .pages button {
+  background: transparent; border: none; padding: 7px 12px; 
+  border-radius: 4px; cursor: pointer; color: #475569; 
+  font-weight: 500; font-size: 12px; transition: all 0.2s;
+}
+.topbar .pages button.active { background: #f1f5f9; color: var(--accent2); font-weight: 600; }
+.topbar .pages button:hover:not(.active) { background: #f8fafc; }
+.topbar .right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; }
+.topbar .right .live {
+  display: inline-flex; align-items: center; gap: 4px; 
+  background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 10px; font-weight: 600;
+}
+.topbar .right .live::before { content: "●"; color: var(--good); }
 
-/* 헤더 및 푸터 숨기기 */
-header {visibility: hidden;}
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
+/* 경로 (Breadcrumb) */
+.crumb { background: #fff; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.crumb a { color: var(--accent2); cursor: pointer; text-decoration: none; font-weight: 600; }
 
-/* 타이틀 디자인 변경 */
-h1 {
-    font-size: 1.5rem !important;
-    font-weight: 800 !important;
-    color: var(--blue-d) !important;
-    letter-spacing: -0.5px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid var(--border);
-    margin-bottom: 25px !important;
-}
+/* 메인 캔버스 및 카드 */
+.canvas { padding: 20px 28px; max-width: 1400px; margin: 0 auto; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); margin-bottom: 16px; }
+.ctitle { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
 
-/* 탭(Tab) 디자인 완벽 변신 (첨부 HTML의 Sidebar Nav 느낌 차용) */
-div[data-baseweb="tab-list"] {
-    background-color: transparent !important;
-    gap: 8px;
-    border-bottom: none !important;
-    margin-bottom: 20px;
-}
-div[data-baseweb="tab"] {
-    background-color: var(--bg2) !important;
-    color: var(--txt2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    padding: 10px 20px !important;
-    font-size: 0.85rem !important;
-    font-weight: 500 !important;
-    box-shadow: 0 1px 3px rgba(30,60,120,.05) !important;
-    transition: all 0.2s ease !important;
-}
-div[data-baseweb="tab"]:hover {
-    background-color: var(--bg4) !important;
-    color: var(--txt) !important;
-}
-div[data-baseweb="tab"][aria-selected="true"] {
-    background-color: var(--blue) !important;
-    color: #FFFFFF !important;
-    border-color: var(--blue) !important;
-    font-weight: 600 !important;
-    box-shadow: 0 2px 6px rgba(37,99,235,.3) !important;
-}
+/* 텍스트 스타일 */
+.loader { color: var(--accent2); font-weight: 600; padding: 20px; font-size: 13px; }
+.metric { font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.metric-sub { font-size: 12px; color: var(--muted); }
+.pos { color: var(--good); font-weight: 600; } 
+.neg { color: var(--bad); font-weight: 600; }
 
-/* 카드(Card) 컨테이너 스타일 (첨부 HTML .card 완벽 재현) */
-div[data-testid="stVerticalBlockBorderWrapper"] {
-    background: var(--bg2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 11px !important;
-    padding: 10px !important;
-    box-shadow: 0 1px 5px rgba(30,60,120,.06) !important;
-    margin-bottom: 16px !important;
-}
+/* 그리드 및 표 */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: right; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { background: #f8fafc; color: #475569; font-weight: 600; text-align: center; }
+tr:hover td { background: #f0f9ff; }
+.buyer-sel { margin-bottom: 16px; }
+select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; min-width: 200px; background: #fff; font-family: inherit; font-weight: 500; }
+.news-item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.news-item a { color: var(--ink); text-decoration: none; font-size: 12px; }
+.news-item a:hover { color: var(--accent2); text-decoration: underline; }
+.macro-header { font-size: 12px; margin-bottom: 10px; color: var(--muted); }
+.macro-header b { color: var(--ink); }
 
-/* KPI 메트릭 스타일 (첨부 HTML .kpi 완벽 재현) */
-[data-testid="stMetric"] {
-    background: var(--bg2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 11px !important;
-    padding: 17px 19px !important;
-    position: relative !important;
-    overflow: hidden !important;
-    box-shadow: 0 1px 5px rgba(30,60,120,.06) !important;
-    transition: all 0.15s !important;
-}
-[data-testid="stMetric"]:hover {
-    border-color: var(--blue) !important;
-    box-shadow: 0 2px 8px rgba(0,120,212,.15) !important;
-}
-/* KPI 상단 띠 장식 */
-[data-testid="stMetric"]::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #2563EB, #0284C7);
-    border-radius: 11px 11px 0 0;
-}
-/* KPI 라벨 */
-[data-testid="stMetricLabel"] > div {
-    font-size: 0.7rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.06em !important;
-    color: var(--txt3) !important;
-    text-transform: uppercase !important;
-}
-/* KPI 값 */
-[data-testid="stMetricValue"] > div {
-    font-size: 2rem !important;
-    font-weight: 800 !important;
-    color: var(--txt) !important;
-    line-height: 1.2 !important;
-}
-/* KPI 델타(변화량) */
-[data-testid="stMetricDelta"] > div {
-    font-size: 0.8rem !important;
-    font-weight: 600 !important;
-}
-
-/* 섹션 소제목 (.ctitle 스타일) */
-.ctitle {
-    font-size: 0.85rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
-    color: var(--txt) !important;
-    margin-bottom: 15px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 7px !important;
-}
-.ctitle::before {
-    content: '';
-    display: inline-block;
-    width: 4px;
-    height: 14px;
-    background: var(--blue);
-    border-radius: 2px;
-}
-
-/* 데이터프레임(Table) 스타일 */
-[data-testid="stDataFrame"] {
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    overflow: hidden !important;
-}
-[data-testid="stDataFrame"] thead tr th {
-    background-color: var(--bg3) !important;
-    color: var(--txt2) !important;
-    font-weight: 600 !important;
-    font-size: 0.75rem !important;
-    letter-spacing: 0.05em !important;
-    text-transform: uppercase !important;
-    border-bottom: 1px solid var(--border) !important;
-}
-[data-testid="stDataFrame"] tbody tr td {
-    color: var(--txt) !important;
-    font-size: 0.8rem !important;
-    border-bottom: 1px solid var(--border2) !important;
-}
-
-/* Selectbox 스타일 */
-.stSelectbox div[data-baseweb="select"] {
-    background-color: var(--bg2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 1px 4px rgba(30,60,120,.06) !important;
-}
+/* 페이지 숨김 처리 */
+.page { display: none; }
+.page.active { display: block; }
 </style>
-"""
-st.markdown(DESIGN_CSS, unsafe_allow_html=True)
+</head>
+<body>
 
-st.title("한솔섬유 US Market & Trade & Company Dashboard")
+<div class="topbar">
+  <div class="brand"><div class="logo">PBI</div>한솔섬유 US Market & RM</div>
+  <div class="pages">
+    <button class="active" onclick="showTab('tab1', this, 'FRED 소매 판매')">FRED 소매 판매</button>
+    <button onclick="showTab('tab2', this, 'OTEXA 수입 데이터')">OTEXA 수입 데이터</button>
+    <button onclick="showTab('tab3', this, '기업 모니터링')">기업 모니터링</button>
+    <button onclick="showTab('tab4', this, '거시경제 및 원가')">거시경제 및 원가</button>
+  </div>
+  <div class="right">
+    <span class="live">실데이터 연동</span>
+    <span>Vercel 무중단 24H 가동 중</span>
+  </div>
+</div>
 
-# (이하 탭 생성 및 기존 파이썬 코드는 그대로 두시면 됩니다!)
+<div class="crumb">
+  <a>홈</a> <span class="sep">›</span> <span id="crumb-text" style="color: var(--ink); font-weight: 500;">FRED 소매 판매</span>
+</div>
+
+<div class="canvas">
+  <!-- TAB 1 -->
+  <div id="tab1" class="page active">
+    <div class="card">
+        <div class="ctitle">미국 소매 카테고리 별 성장률 (YTD)</div>
+        <div id="fred-ytd" class="loader">데이터를 불러오는 중입니다...</div>
+    </div>
+    <div class="card">
+        <div class="ctitle">미국 소매 카테고리 별 전년 동월대비 증감률 (YoY %)</div>
+        <div style="overflow-x:auto;">
+            <div id="fred-yoy"></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- TAB 2 -->
+  <div id="tab2" class="page">
+    <div class="card">
+        <div class="ctitle">미국 의류 수입 국가별 비중 (%)</div>
+        <div id="otexa-share" class="loader">데이터를 불러오는 중입니다...</div>
+    </div>
+    <div class="card">
+        <div class="ctitle">미국 의류 수입 국가별 전년 동월대비 증감률 (YoY %)</div>
+        <div style="overflow-x:auto;">
+            <div id="otexa-yoy"></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- TAB 3 -->
+  <div id="tab3" class="page">
+    <div class="buyer-sel">
+        <select id="companySelect" onchange="loadCompany()">
+            <option value="WMT|Walmart">Walmart (월마트)</option>
+            <option value="TGT|Target">Target (타겟)</option>
+            <option value="KSS|Kohl's">Kohl's (콜스)</option>
+            <option value="VSCO|Victoria's Secret">Victoria's Secret (빅토리아 시크릿)</option>
+            <option value="ANF|Abercrombie">Abercrombie & Fitch (아베크롬비)</option>
+            <option value="CRI|Carter's">Carter's (카터스)</option>
+            <option value="9983.T|Fast Retailing">Fast Retailing (유니클로)</option>
+            <option value="UA|Under Armour">Under Armour (언더아머)</option>
+            <option value="AMZN|Amazon">Amazon (아마존)</option>
+        </select>
+    </div>
+    <div class="g2">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="ctitle">실시간 주가 추세 (최근 1년)</div>
+            <div id="comp-price" style="margin-bottom: 10px;"></div>
+            <div id="comp-chart"></div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+            <div class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</div>
+            <div id="comp-fin" style="height: 300px;"></div>
+        </div>
+    </div>
+    <div class="card" style="margin-top: 16px;">
+        <div class="ctitle">관련 최신 뉴스</div>
+        <div id="comp-news"></div>
+    </div>
+  </div>
+
+  <!-- TAB 4 -->
+  <div id="tab4" class="page">
+    <div class="g2">
+        <div class="card">
+            <div class="ctitle">원/달러 환율 (최근 1년)</div>
+            <div id="m-krw-text" class="macro-header"></div>
+            <div id="m-krw-chart" class="loader">데이터를 불러오는 중입니다...</div>
+        </div>
+        <div class="card">
+            <div class="ctitle">한·미 기준금리 추이 (최근 5년)</div>
+            <div id="m-rate-text" class="macro-header"></div>
+            <div id="m-rate-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">글로벌 면화 선물 가격 (최근 1년)</div>
+            <div id="m-cotton-text" class="macro-header"></div>
+            <div id="m-cotton-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">WTI 국제 유가 (최근 1년)</div>
+            <div id="m-wti-text" class="macro-header"></div>
+            <div id="m-wti-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">미국 실질 GDP (최근 5년)</div>
+            <div id="m-gdp-text" class="macro-header"></div>
+            <div id="m-gdp-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">미국 의류 소비자물가지수 (CPI)</div>
+            <div id="m-cpi-text" class="macro-header"></div>
+            <div id="m-cpi-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">미국 의류 소매재고율</div>
+            <div id="m-inv-text" class="macro-header"></div>
+            <div id="m-inv-chart"></div>
+        </div>
+        <div class="card">
+            <div class="ctitle">미국 의류 소매 판매액</div>
+            <div id="m-sales-text" class="macro-header"></div>
+            <div id="m-sales-chart"></div>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 탭 전환 기능
+function showTab(tabId, el, title) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.topbar .pages button').forEach(t => t.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    el.classList.add('active');
+    document.getElementById('crumb-text').innerText = title;
+    
+    if(tabId === 'tab1' && !window.fredLoaded) { window.fredLoaded=true; loadFred(); }
+    if(tabId === 'tab2' && !window.otexaLoaded) { window.otexaLoaded=true; loadOtexa(); }
+    if(tabId === 'tab3' && !window.compLoaded) { window.compLoaded=true; loadCompany(); }
+    if(tabId === 'tab4' && !window.macroLoaded) { window.macroLoaded=true; loadMacro(); }
+}
+
+const chartLayout = {
+    plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+    margin: {l: 40, r: 20, t: 10, b: 30},
+    xaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}},
+    yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}}
+};
+
+// [Tab 1] FRED
+function loadFred() {
+    fetch('/api/fred').then(r=>r.json()).then(data => {
+        if(data.error) { document.getElementById('fred-ytd').innerHTML = data.error; return; }
+        
+        document.getElementById('fred-ytd').innerHTML = "";
+        let cats = Object.keys(data.ytd).reverse();
+        let vals = Object.values(data.ytd).reverse();
+        
+        Plotly.newPlot('fred-ytd', [{
+            type: 'bar', x: vals, y: cats, orientation: 'h',
+            marker: {color: vals.map(v => v < 0 ? '#ef4444' : '#0078d4')},
+            text: vals.map(v => v.toFixed(1) + '%'), textposition: 'outside'
+        }], { height: 500, margin: {l: 300, r: 40, t: 10, b: 20}, xaxis: {gridcolor: '#e2e8f0'} });
+
+        let tableData = data.table;
+        if(tableData.length > 0) {
+            let cols = Object.keys(tableData[0]);
+            let ths = cols.map(c => `<th>${c}</th>`).join('');
+            let trs = tableData.map(row => {
+                let tds = cols.map((c, i) => {
+                    if (c === "Date") return `<td style="text-align:center; font-weight:600; background:#f8fafc;">${row[c]}</td>`;
+                    let val = row[c];
+                    let color = val < 0 ? 'color: #ef4444;' : 'color: #0f172a;';
+                    return `<td style="${color}">${val.toFixed(1)}%</td>`;
+                }).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            document.getElementById('fred-yoy').innerHTML = `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+        }
+    });
+}
+
+// [Tab 2] OTEXA
+function loadOtexa() {
+    fetch('/api/otexa').then(r=>r.json()).then(data => {
+        if(data.error) { document.getElementById('otexa-share').innerHTML = data.error; return; }
+        document.getElementById('otexa-share').innerHTML = "";
+        
+        let colors = ['#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#eff6ff'];
+        let traces = data.years.map((year, i) => ({
+            x: data.share.map(d => d.Country), y: data.share.map(d => d[year]),
+            name: year, type: 'bar', marker: {color: colors[i % colors.length]},
+            text: data.share.map(d => d[year] ? d[year].toFixed(1) + '%' : ''), textposition: 'outside'
+        }));
+        Plotly.newPlot('otexa-share', traces, { barmode: 'group', height: 350, plot_bgcolor: '#fff', legend: {orientation: 'h', y: -0.15} });
+
+        let yoyData = data.yoy;
+        if(yoyData.length > 0) {
+            let cols = Object.keys(yoyData[0]);
+            let ths = cols.map(c => `<th>${c}</th>`).join('');
+            let bgMap = {'World': '#64748b', 'China': '#d97706', 'Vietnam': '#059669', 'Indonesia': '#2563eb', 'Cambodia': '#1e3a8a', 'Nicaragua': '#dc2626', 'Guatemala': '#0d9488'};
+            
+            let trs = yoyData.map(row => {
+                let bg = bgMap[row.Country] || '#ffffff';
+                let tds = cols.map((c, i) => {
+                    if(i === 0) return `<td style="background-color:${bg}; color:white; font-weight:600; text-align:center;">${row[c]}</td>`;
+                    return `<td style="background-color:${bg}; color:white;">${row[c] ? row[c].toFixed(1)+'%' : '-'}</td>`;
+                }).join('');
+                return `<tr>${tds}</tr>`;
+            }).join('');
+            document.getElementById('otexa-yoy').innerHTML = `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+        }
+    });
+}
+
+// [Tab 3] 기업 모니터링
+function loadCompany() {
+    document.getElementById('comp-price').innerHTML = "<div class='loader'>데이터 로딩 중...</div>";
+    document.getElementById('comp-chart').innerHTML = "";
+    document.getElementById('comp-fin').innerHTML = "<div class='loader'>재무 데이터 로딩 중...</div>";
+    document.getElementById('comp-news').innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
+    
+    let val = document.getElementById('companySelect').value.split('|');
+    
+    fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`).then(r=>r.json()).then(data => {
+        let pColor = data.mom >= 0 ? 'pos' : 'neg';
+        let pSign = data.mom >= 0 ? '+' : '';
+        let curr = val[0].includes('.T') ? '¥' : val[0].includes('.K') ? '₩' : '$';
+        document.getElementById('comp-price').innerHTML = `
+            <div class="metric">${curr} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+            <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
+        `;
+        
+        let dates = data.history.map(d => d.date);
+        let closes = data.history.map(d => d.close);
+        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { ...chartLayout, height: 220, margin: {t:0, b:30, l:50, r:20} });
+        
+        if(data.financials && data.financials.length > 0) {
+            let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
+            let fTraces = data.financials.map(row => {
+                let color = row.index.includes('영업이익') ? '#f59e0b' : '#1e3a8a';
+                return {
+                    x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
+                    text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), textposition: 'outside', textfont: {size: 10}
+                };
+            });
+            Plotly.newPlot('comp-fin', fTraces, { barmode: 'group', ...chartLayout, height: 280, margin:{t:10}, legend: {orientation: 'h', y: 1.15} });
+        } else {
+            document.getElementById('comp-fin').innerHTML = "<div style='padding:20px; color:#64748b; font-size:12px;'>최근 4개 분기 실적 데이터를 제공하지 않습니다.</div>";
+        }
+        
+        let newsHtml = data.news.map(n => `<div class="news-item"><a href="${n.link}" target="_blank">${n.title}</a></div>`).join('');
+        document.getElementById('comp-news').innerHTML = newsHtml || "<div style='padding:20px; font-size:12px;'>관련 뉴스를 찾을 수 없습니다.</div>";
+    });
+}
+
+// [Tab 4] 거시경제
+function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false) {
+    if(!d) {
+        document.getElementById(`m-${id}-text`).innerHTML = "데이터 지연";
+        document.getElementById(`m-${id}-chart`).innerHTML = "";
+        return;
+    }
+    let pSign = d.chg >= 0 ? '+' : '';
+    let pColor = d.chg >= 0 ? 'pos' : 'neg';
+    document.getElementById(`m-${id}-text`).innerHTML = `시작: <b>${prefix}${d.start.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> ➔ 최신: <b>${prefix}${d.end.toLocaleString(undefined, {maximumFractionDigits:2})}${suffix}</b> (<span class="${pColor}">${pSign}${d.chg.toFixed(1)}%</span>)`;
+    
+    let trace = { x: d.history.map(x=>x.d), y: d.history.map(x=>x.v), type: 'scatter', line: {color: color, width: 2} };
+    if(isArea) { trace.fill = 'tozeroy'; }
+    Plotly.newPlot(`m-${id}-chart`, [trace], { ...chartLayout, height: 200 });
+}
+
+function loadMacro() {
+    fetch('/api/macro').then(r=>r.json()).then(data => {
+        document.getElementById('m-krw-chart').innerHTML = ""; 
+        drawMacroChart('krw', data.krw, '#0078d4', '', '원');
+        drawMacroChart('cotton', data.cotton, '#f59e0b', '$', '');
+        drawMacroChart('wti', data.wti, '#1e3a8a', '$', '');
+        drawMacroChart('gdp', data.gdp, '#a78bfa', '', '');
+        drawMacroChart('cpi', data.cpi, '#f59e0b', '', '');
+        drawMacroChart('inv', data.inv, '#22c55e', '', '개월', true);
+        drawMacroChart('sales', data.sales, '#ef4444', '$', 'M');
+        
+        if(data.us_rate) {
+            let us = data.us_rate;
+            document.getElementById('m-rate-text').innerHTML = `최신 미국 금리: <b>${us.end.toFixed(2)}%</b>`;
+            let tUS = { x: us.history.map(x=>x.d), y: us.history.map(x=>x.v), name: '미국', type: 'scatter', line: {color: '#ef4444', width: 2} };
+            Plotly.newPlot('m-rate-chart', [tUS], { ...chartLayout, height: 200, showlegend: true, legend: {orientation: 'h', y: 1.15} });
+        }
+    });
+}
+
+// 초기 로딩
+loadFred();
+</script>
+</body>
+</html>
