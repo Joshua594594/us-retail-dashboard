@@ -67,7 +67,8 @@ body {
 .page-tab:hover { color: var(--ink); }
 .page-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
+.main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; width: 100%; }
+.js-plotly-plot, .plot-container { width: 100% !important; }
 .page { display: none; }
 .page.active { display: block; animation: fadein 0.25s ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
@@ -77,12 +78,12 @@ body {
     padding: 22px 24px; box-shadow: 0 1px 2px rgba(36,32,26,0.04);
     margin-bottom: 18px;
 }
-h3.ctitle {
+.ctitle {
     font-family: 'Noto Serif KR', serif;
     font-size: 14.5px; font-weight: 600; margin: 0 0 16px 0; color: var(--ink);
     display: flex; align-items: center; gap: 9px; letter-spacing: -0.005em;
 }
-h3.ctitle::before {
+.ctitle::before {
     content: ''; display: inline-block; width: 3px; height: 13px;
     background: var(--accent); border-radius: 2px; flex-shrink: 0;
 }
@@ -217,7 +218,7 @@ optgroup { font-weight: 700; color: var(--muted); }
         </div>
         <div class="card" style="margin-bottom: 0;">
             <div class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</div>
-            <div id="comp-fin" style="height: 280px;"></div>
+            <div id="comp-fin" style="height: 320px;"></div>
         </div>
     </div>
     <div class="card" style="margin-top: 18px;">
@@ -274,6 +275,18 @@ optgroup { font-weight: 700; color: var(--muted); }
 </div>
 
 <script>
+const plotlyConfig = { responsive: true, displaylogo: false };
+
+function resizeAllPlots() {
+    document.querySelectorAll('.js-plotly-plot').forEach(el => {
+        try { Plotly.Plots.resize(el); } catch(e) {}
+    });
+}
+window.addEventListener('resize', () => {
+    clearTimeout(window._resizeTimer);
+    window._resizeTimer = setTimeout(resizeAllPlots, 150);
+});
+
 function showTab(tabId, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
@@ -302,7 +315,7 @@ const chartLayout5Yr = {
     font: {family: 'Inter, sans-serif', color: '#24201A'},
     margin: {l: 45, r: 25, t: 10, b: 35},
     xaxis: {
-        type: 'date', tickformat: '%Y년', dtick: 'M12',
+        type: 'date', tickformat: '%Y', dtick: 'M12',
         showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}
     },
     yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}}
@@ -329,7 +342,7 @@ function loadFred() {
             let targetIdx = cats.indexOf("Clothing and Clothing Accessories Stores");
 
             let shapes = targetIdx >= 0 ? [{
-                type: 'rect', xref: 'paper', x0: -0.75, x1: 1.08, yref: 'y', y0: targetIdx - 0.45, y1: targetIdx + 0.45,
+                type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: targetIdx - 0.45, y1: targetIdx + 0.45,
                 fillcolor: 'rgba(191, 91, 68, 0.10)', line: {color: '#BF5B44', width: 2}, layer: 'below'
             }] : [];
 
@@ -342,17 +355,17 @@ function loadFred() {
                 font: {family: 'Inter, sans-serif', color: '#24201A'},
                 paper_bgcolor: '#fff', plot_bgcolor: '#fff',
                 xaxis: {gridcolor: '#E6DFD1'}, shapes: shapes
-            });
+            }, plotlyConfig);
 
             if(data.trend && data.trend.length > 0) {
                 let tDates = data.trend.map(d => d.Date);
                 let tCols = ["Total Retail Trade", "Nonstore Retailers", "Clothing and Clothing Accessories Stores", "Offline"];
-                let tColors = ['#3D5A66', '#D97757', '#BF5B44', '#6B8F71'];
+                let tColors = ['#3D5A66', '#C9932F', '#BF5B44', '#6B8F71'];
                 let lineTraces = tCols.map((col, idx) => ({
                     x: tDates, y: data.trend.map(d => d[col]),
                     name: col, type: 'scatter', mode: 'lines+markers', line: {color: tColors[idx], width: 2}
                 }));
-                Plotly.newPlot('fred-line-chart', lineTraces, { ...chartLayout1Yr, height: 300, legend: {orientation: 'h', y: -0.25} });
+                Plotly.newPlot('fred-line-chart', lineTraces, { ...chartLayout1Yr, height: 300, legend: {orientation: 'h', y: -0.25} }, plotlyConfig);
             }
 
             let tableData = data.table;
@@ -393,10 +406,13 @@ function loadOtexa() {
             textposition: 'auto', textfont: {size: 10}
         }));
         Plotly.newPlot('otexa-share', traces, {
-            barmode: 'group', height: 350, plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+            barmode: 'group', height: 380, plot_bgcolor: '#fff', paper_bgcolor: '#fff',
             font: {family: 'Inter, sans-serif', color: '#24201A'},
-            legend: {orientation: 'h', y: -0.2}
-        });
+            margin: {l: 45, r: 25, t: 10, b: 45},
+            xaxis: {tickangle: 0, automargin: true, tickfont: {size: 11, color: '#8A8274'}},
+            yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}},
+            legend: {orientation: 'h', y: -0.15}
+        }, plotlyConfig);
 
         let target7 = ['World', 'China', 'Vietnam', 'Indonesia', 'Cambodia', 'Guatemala', 'Nicaragua'];
         let colorMap = {
@@ -420,22 +436,23 @@ function loadOtexa() {
             }).filter(t => t !== null);
 
             Plotly.newPlot('otexa-yoy-line', lineTraces, {
-                plot_bgcolor: '#fff', paper_bgcolor: '#fff', height: 320,
+                plot_bgcolor: '#fff', paper_bgcolor: '#fff', height: 420,
                 font: {family: 'Inter, sans-serif', color: '#24201A'},
                 margin: {l: 45, r: 25, t: 10, b: 40},
                 xaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}},
                 yaxis: {showgrid: true, gridcolor: '#E6DFD1', tickfont: {size: 11, color: '#8A8274'}},
-                legend: {orientation: 'h', y: -0.25}
-            });
+                legend: {orientation: 'h', y: -0.2}
+            }, plotlyConfig);
 
             let ths = ['Country', ...dateCols].map(c => `<th>${c}</th>`).join('');
-            let defaultColors = ['#5C5347', '#3D5A66', '#6B8F71', '#C9932F', '#7B6C8E', '#B5567F', '#8B7355', '#3F8F8A'];
 
-            let trs = yoyDataAll.map((row, idx) => {
-                let bg = colorMap[row.Country] || defaultColors[idx % defaultColors.length];
+            let trs = yoyDataAll.map((row) => {
+                let mapped = colorMap[row.Country];
+                let bg = mapped || '#ffffff';
+                let textColor = mapped ? '#ffffff' : '#24201A';
                 let tds = ['Country', ...dateCols].map((c, i) => {
-                    if(i === 0) return `<td style="background-color:${bg}; color:#ffffff; font-weight:700; text-align:center;">${row[c]}</td>`;
-                    return `<td style="background-color:${bg}; color:#ffffff; font-weight:600;">${row[c] !== null && row[c] !== undefined ? Number(row[c]).toFixed(1)+'%' : '-'}</td>`;
+                    if(i === 0) return `<td style="background-color:${bg}; color:${textColor}; font-weight:700; text-align:center;">${row[c]}</td>`;
+                    return `<td style="background-color:${bg}; color:${textColor}; font-weight:600;">${row[c] !== null && row[c] !== undefined ? Number(row[c]).toFixed(1)+'%' : '-'}</td>`;
                 }).join('');
                 return `<tr>${tds}</tr>`;
             }).join('');
@@ -477,24 +494,35 @@ function loadCompany() {
             let closes = data.history.map(d => d.close);
             Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#D97757', width: 2} }], {
                 ...chartLayout1Yr, height: 220, margin: {t:10, b:35, l:50, r:20}
-            });
+            }, plotlyConfig);
 
             if(data.financials && data.financials.length > 0) {
                 let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
+                const finLabelKo = (label) => {
+                    let map = [
+                        [/total revenue/i, '매출'], [/operating revenue/i, '영업수익'],
+                        [/^revenue$/i, '매출'], [/operating income/i, '영업이익'],
+                        [/operating profit/i, '영업이익'], [/net income/i, '순이익'],
+                        [/gross profit/i, '매출총이익'], [/ebitda/i, 'EBITDA']
+                    ];
+                    for (const [pat, ko] of map) { if (pat.test(label)) return ko; }
+                    return label.includes('영업') ? label : label;
+                };
                 let fTraces = data.financials.map(row => {
                     let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#C9932F' : '#3D5A66';
                     return {
-                        x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
+                        x: qtrs, y: qtrs.map(q => row[q]), name: finLabelKo(row.index), type: 'bar', marker: {color: color},
                         text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'),
                         textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#24201A'}
                     };
                 });
                 Plotly.newPlot('comp-fin', fTraces, {
-                    barmode: 'group', ...chartLayout1Yr, height: 280,
-                    margin:{t:30, b:30, l:45, r:20},
+                    barmode: 'group', ...chartLayout1Yr, height: 320,
+                    margin:{t:40, b:55, l:45, r:20},
+                    xaxis: {...chartLayout1Yr.xaxis, automargin: true},
                     yaxis: {showgrid: true, gridcolor: '#E6DFD1', automargin: true},
-                    legend: {orientation: 'h', y: 1.25}
-                });
+                    legend: {orientation: 'h', y: 1.2}
+                }, plotlyConfig);
             } else {
                 finEl.innerHTML = "<div style='padding:20px; color:#8A8274; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않는 기업입니다.</div>";
             }
@@ -524,7 +552,7 @@ function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false, is5Yr=
     document.getElementById(`m-${id}-chart`).innerHTML = "";
 
     let targetLayout = is5Yr ? chartLayout5Yr : chartLayout1Yr;
-    Plotly.newPlot(`m-${id}-chart`, [trace], { ...targetLayout, height: 220 });
+    Plotly.newPlot(`m-${id}-chart`, [trace], { ...targetLayout, height: 220 }, plotlyConfig);
 }
 
 function loadMacro() {
@@ -544,7 +572,10 @@ function loadMacro() {
             let tUS = { x: us.history.map(x=>x.d), y: us.history.map(x=>x.v), name: '미국', type: 'scatter', line: {color: '#BF5B44', width: 2} };
             let tKR = { x: kr.history.map(x=>x.d), y: kr.history.map(x=>x.v), name: '한국', type: 'scatter', line: {color: '#3D5A66', width: 2} };
             document.getElementById('m-rate-chart').innerHTML = "";
-            Plotly.newPlot('m-rate-chart', [tUS, tKR], { ...chartLayout5Yr, height: 220, showlegend: true, legend: {orientation: 'h', y: 1.15} });
+            Plotly.newPlot('m-rate-chart', [tUS, tKR], {
+                ...chartLayout5Yr, height: 255,
+                showlegend: true, legend: {orientation: 'h', y: 1.15}
+            }, plotlyConfig);
         } else {
              document.getElementById('m-rate-text').innerHTML = "데이터 연동 지연";
              document.getElementById('m-rate-chart').innerHTML = "";
