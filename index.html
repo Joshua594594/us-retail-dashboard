@@ -125,6 +125,7 @@ optgroup { font-weight: 700; color: var(--muted); }
 .news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 12.5px; }
 .news-item a:hover { color: var(--accent); text-decoration: underline; }
 
+.chart-host { min-height: 220px; }
 .macro-header { font-size: 12px; margin-bottom: 10px; color: var(--muted); }
 .macro-header b { color: var(--ink); font-weight: 700; }
 
@@ -155,11 +156,11 @@ optgroup { font-weight: 700; color: var(--muted); }
   <div id="tab1" class="page active">
     <div class="card">
         <h3 class="ctitle">미국 소매 카테고리 별 성장률 (YTD)</h3>
-        <div id="fred-ytd" class="loader">FRED 데이터 분석 중...</div>
+        <div id="fred-ytd" class="loader chart-host" style="min-height:520px;">FRED 데이터 분석 중...</div>
     </div>
     <div class="card">
         <h3 class="ctitle">주요 4개 카테고리 전년 동월대비 증감률 추이 (YoY %)</h3>
-        <div id="fred-line-chart"></div>
+        <div id="fred-line-chart" class="chart-host" style="min-height:300px;"></div>
     </div>
     <div class="card">
         <h3 class="ctitle">미국 소매 카테고리 별 전년 동월대비 증감률 (YoY %)</h3>
@@ -171,11 +172,11 @@ optgroup { font-weight: 700; color: var(--muted); }
   <div id="tab2" class="page">
     <div class="card">
         <h3 class="ctitle">미국 의류 수입 국가별 비중 (%)</h3>
-        <div id="otexa-share" class="loader">OTEXA 데이터 로딩 중...</div>
+        <div id="otexa-share" class="loader chart-host" style="min-height:380px;">OTEXA 데이터 로딩 중...</div>
     </div>
     <div class="card">
         <h3 class="ctitle">미국 의류 수입 주요 7개국 전년 동월대비 증감률 (YoY %) - 추세</h3>
-        <div id="otexa-yoy-line"></div>
+        <div id="otexa-yoy-line" class="chart-host" style="min-height:420px;"></div>
         <div id="otexa-yoy" class="table-wrap" style="margin-top:20px;"></div>
     </div>
   </div>
@@ -214,11 +215,11 @@ optgroup { font-weight: 700; color: var(--muted); }
         <div class="card" style="margin-bottom: 0;">
             <div class="ctitle">실시간 주가 추세 (최근 1년)</div>
             <div id="comp-price" style="margin-bottom: 10px;"></div>
-            <div id="comp-chart"></div>
+            <div id="comp-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card" style="margin-bottom: 0;">
             <div class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</div>
-            <div id="comp-fin" style="height: 320px;"></div>
+            <div id="comp-fin" class="chart-host" style="min-height:320px;"></div>
         </div>
     </div>
     <div class="card" style="margin-top: 18px;">
@@ -233,42 +234,42 @@ optgroup { font-weight: 700; color: var(--muted); }
         <div class="card">
             <div class="ctitle">💱 원/달러 환율 (최근 1년)</div>
             <div id="m-krw-text" class="macro-header"></div>
-            <div id="m-krw-chart" class="loader">데이터를 불러오는 중입니다...</div>
+            <div id="m-krw-chart" class="loader chart-host" style="min-height:220px;">데이터를 불러오는 중입니다...</div>
         </div>
         <div class="card">
             <div class="ctitle">🏦 한·미 기준금리 추이 (최근 5년)</div>
             <div id="m-rate-text" class="macro-header"></div>
-            <div id="m-rate-chart"></div>
+            <div id="m-rate-chart" class="chart-host" style="min-height:255px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">🌱 글로벌 면화 선물 가격 (최근 1년)</div>
             <div id="m-cotton-text" class="macro-header"></div>
-            <div id="m-cotton-chart"></div>
+            <div id="m-cotton-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">⚓ WTI 국제 유가 (최근 1년)</div>
             <div id="m-wti-text" class="macro-header"></div>
-            <div id="m-wti-chart"></div>
+            <div id="m-wti-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">🏢 미국 실질 GDP (최근 5년)</div>
             <div id="m-gdp-text" class="macro-header"></div>
-            <div id="m-gdp-chart"></div>
+            <div id="m-gdp-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">👕 미국 의류 소비자물가지수 (CPI)</div>
             <div id="m-cpi-text" class="macro-header"></div>
-            <div id="m-cpi-chart"></div>
+            <div id="m-cpi-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">📦 미국 의류 소매재고율 (최근 5년)</div>
             <div id="m-inv-text" class="macro-header"></div>
-            <div id="m-inv-chart"></div>
+            <div id="m-inv-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
         <div class="card">
             <div class="ctitle">🛍️ 미국 의류 소매 판매액 (최근 5년)</div>
             <div id="m-sales-text" class="macro-header"></div>
-            <div id="m-sales-chart"></div>
+            <div id="m-sales-chart" class="chart-host" style="min-height:220px;"></div>
         </div>
     </div>
   </div>
@@ -277,14 +278,35 @@ optgroup { font-weight: 700; color: var(--muted); }
 <script>
 const plotlyConfig = { responsive: true, displaylogo: false };
 
+function fitFredHighlight() {
+    let gd = window._fredGd;
+    let idx = window._fredTargetIdx;
+    if (!gd || idx === undefined || idx === null) return;
+    if (gd.offsetParent === null) return; // chart not visible right now
+    let fl = gd._fullLayout;
+    if (!fl || !fl._size) return;
+    let plotW = fl._size.w;
+    let marginL = fl._size.l;
+    let marginR = fl.width - fl._size.r - plotW;
+    if (!plotW || plotW <= 0) return;
+    let x0 = -(marginL / plotW);
+    let x1 = 1 + (marginR / plotW);
+    Plotly.relayout(gd, {
+        'shapes[0].x0': x0,
+        'shapes[0].x1': x1
+    });
+}
+
 function resizeAllPlots() {
-    document.querySelectorAll('.js-plotly-plot').forEach(el => {
+    document.querySelectorAll('.page.active .js-plotly-plot').forEach(el => {
+        if (el.offsetParent === null) return; // skip hidden charts entirely
         try { Plotly.Plots.resize(el); } catch(e) {}
     });
+    fitFredHighlight();
 }
 window.addEventListener('resize', () => {
     clearTimeout(window._resizeTimer);
-    window._resizeTimer = setTimeout(resizeAllPlots, 150);
+    window._resizeTimer = setTimeout(resizeAllPlots, 200);
 });
 
 function showTab(tabId, el) {
@@ -297,6 +319,7 @@ function showTab(tabId, el) {
     if(tabId === 'tab2' && !window.otexaLoaded) { window.otexaLoaded=true; loadOtexa(); }
     if(tabId === 'tab3' && !window.compLoaded) { window.compLoaded=true; loadCompany(); }
     if(tabId === 'tab4' && !window.macroLoaded) { window.macroLoaded=true; loadMacro(); }
+    setTimeout(resizeAllPlots, 50);
 }
 
 const chartLayout1Yr = {
@@ -355,7 +378,12 @@ function loadFred() {
                 font: {family: 'Inter, sans-serif', color: '#24201A'},
                 paper_bgcolor: '#fff', plot_bgcolor: '#fff',
                 xaxis: {gridcolor: '#E6DFD1'}, shapes: shapes
-            }, plotlyConfig);
+            }, plotlyConfig).then(gd => {
+                if (targetIdx < 0) return;
+                window._fredGd = gd;
+                window._fredTargetIdx = targetIdx;
+                fitFredHighlight();
+            });
 
             if(data.trend && data.trend.length > 0) {
                 let tDates = data.trend.map(d => d.Date);
@@ -483,7 +511,10 @@ function loadCompany() {
         .then(data => {
             let pColor = data.mom >= 0 ? 'pos' : 'neg';
             let pSign = data.mom >= 0 ? '+' : '';
-            let currSym = data.currency === "KRW" ? "₩" : data.currency === "JPY" ? "¥" : data.currency === "CAD" ? "CA$" : "$";
+            let ticker = val[0];
+            let currencyOverrides = { 'ATZ.TO': 'CAD' }; // Aritzia는 TSX 상장으로 CAD 표기 강제
+            let effectiveCurrency = currencyOverrides[ticker] || data.currency;
+            let currSym = effectiveCurrency === "KRW" ? "₩" : effectiveCurrency === "JPY" ? "¥" : effectiveCurrency === "CAD" ? "CA$" : "$";
 
             priceEl.innerHTML = `
                 <div class="metric">${currSym} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
@@ -501,12 +532,12 @@ function loadCompany() {
                 const finLabelKo = (label) => {
                     let map = [
                         [/total revenue/i, '매출'], [/operating revenue/i, '영업수익'],
-                        [/^revenue$/i, '매출'], [/operating income/i, '영업이익'],
+                        [/revenue/i, '매출'], [/operating income/i, '영업이익'],
                         [/operating profit/i, '영업이익'], [/net income/i, '순이익'],
                         [/gross profit/i, '매출총이익'], [/ebitda/i, 'EBITDA']
                     ];
                     for (const [pat, ko] of map) { if (pat.test(label)) return ko; }
-                    return label.includes('영업') ? label : label;
+                    return label;
                 };
                 let fTraces = data.financials.map(row => {
                     let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#C9932F' : '#3D5A66';
