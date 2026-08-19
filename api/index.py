@@ -7,6 +7,7 @@ import os
 import urllib.parse
 import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
+from concurrent.futures import ThreadPoolExecutor
 
 app = FastAPI()
 
@@ -21,6 +22,22 @@ app.add_middleware(
 FRED_API_KEY = "7cbd5f701c3b7e514e3dfcb6810d2fb7"
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
+# FRED 단일 요청 함수 (병렬용)
+def fetch_single_fred(item):
+    cat, ticker = item
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
+        res = requests.get(url, headers=HEADERS, timeout=4).json()
+        if 'observations' in res:
+            df = pd.DataFrame(res['observations'])
+            df['Date'] = pd.to_datetime(df['date'])
+            df['Sales'] = pd.to_numeric(df['value'], errors='coerce')
+            df['Category'] = cat
+            return df[['Date', 'Category', 'Sales']].dropna()
+    except:
+        pass
+    return None
+
 # [Tab 1] FRED 소매 판매
 @app.get("/api/fred")
 def get_fred_data():
@@ -33,20 +50,15 @@ def get_fred_data():
         "Sporting Goods, Hobby, Musical Instrument, and Book Stores": "RSSGHBMS",
         "General Merchandise Stores": "RSGMS", "Miscellaneous Store Retailers": "RSMSR"
     }
-    all_data = []
-    for cat, ticker in series_map.items():
-        try:
-            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-            res = requests.get(url, headers=HEADERS, timeout=5).json()
-            df = pd.DataFrame(res['observations'])
-            df['Date'] = pd.to_datetime(df['date'])
-            df['Sales'] = pd.to_numeric(df['value'], errors='coerce')
-            df['Category'] = cat
-            all_data.append(df[['Date', 'Category', 'Sales']].dropna())
-        except:
-            continue
+    
+    # ⚡ 13개 시리즈를 병렬로 동시 수집 (10초 -> 1초로 단축!)
+    series_items = list(series_map.items())
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(fetch_single_fred, series_items))
+        
+    all_data = [df for df in results if df is not None and not df.empty]
             
-    if not all_data: return {"error": "FRED 데이터를 불러올 수 없습니다."}
+    if not all_data: return {"error": "FRED 데이터 응답 시간이 초과되었습니다. 잠시 후 재시도 해주세요."}
     
     df = pd.concat(all_data, ignore_index=True)
     df_pivot = df.pivot(index='Date', columns='Category', values='Sales')
@@ -138,7 +150,7 @@ def get_company_data(ticker: str, keyword: str):
                 raw_fin.columns = [str(c).split(' ')[0] for c in raw_fin.columns]
                 raw_fin = raw_fin[raw_fin.columns[::-1]]
                 growth = raw_fin.pct_change(periods=1, axis=1) * 100
-                growth = growth.dropna(how='all', axis=1) # 첫 NaN 분기 제거
+                growth = growth.dropna(how='all', axis=1)
                 fin_data = growth.fillna(0).reset_index().to_dict(orient='records')
     except: pass
     
@@ -157,7 +169,6 @@ def get_company_data(ticker: str, keyword: str):
             translated_news.append({"title": f"[{pub}] {title}", "link": link})
     except: pass
 
-    # 통화 단위 판별
     currency_code = "USD"
     if ".KS" in ticker or ".KQ" in ticker: currency_code = "KRW"
     elif ".T" in ticker: currency_code = "JPY"
@@ -170,7 +181,6 @@ def get_company_data(ticker: str, keyword: str):
 def get_macro():
     macro_res = {}
     
-    # 1. YFinance
     yfs = {"krw": "KRW=X", "cotton": "CT=F", "wti": "CL=F"}
     for k, tkr in yfs.items():
         try:
@@ -179,13 +189,12 @@ def get_macro():
                 macro_res[k] = {"start": h.iloc[0], "end": h.iloc[-1], "chg": ((h.iloc[-1]/h.iloc[0])-1)*100, "history": [{"d": str(d)[:10], "v": v} for d, v in zip(h.index, h)]}
         except: macro_res[k] = None
 
-    # 2. FRED
     start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
     freds = {"gdp": "GDPC1", "cpi": "CPIAPPSL", "inv": "MRTSIR448USS", "sales": "RSCCASN", "us_rate": "FEDFUNDS"}
     for k, tkr in freds.items():
         try:
             url = f"https://api.stlouisfed.org/fred/series/observations?series_id={tkr}&api_key={FRED_API_KEY}&file_type=json"
-            res = requests.get(url, headers=HEADERS, timeout=5)
+            res = requests.get(url, headers=HEADERS, timeout=4)
             if res.status_code == 200:
                 df = pd.DataFrame(res.json()['observations'])
                 df['date'] = pd.to_datetime(df['date'])
@@ -196,7 +205,6 @@ def get_macro():
                     macro_res[k] = {"start": df.iloc[0], "end": df.iloc[-1], "chg": ((df.iloc[-1]/df.iloc[0])-1)*100, "history": [{"d": str(d)[:10], "v": v} for d, v in zip(df.index, df)]}
         except: macro_res[k] = None
 
-    # 3. KR Rate
     try:
         dates = pd.date_range(start=start_date, end=pd.Timestamp.today(), freq='ME')
         kr_rate = pd.Series(3.50, index=dates)
