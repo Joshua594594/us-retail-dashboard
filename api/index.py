@@ -4,10 +4,9 @@ import pandas as pd
 import yfinance as yf
 import requests
 import os
-import math
-from deep_translator import GoogleTranslator
 import urllib.parse
 import xml.etree.ElementTree as ET
+from deep_translator import GoogleTranslator
 
 app = FastAPI()
 
@@ -58,24 +57,30 @@ def get_fred_data():
     curr_df = df_pivot[df_pivot.index.year == latest_date.year]
     prev_df = df_pivot[(df_pivot.index.year == latest_date.year - 1) & (df_pivot.index.month <= latest_date.month)]
     
+    # 1. YTD (가로 바 차트용)
     ytd_growth = ((curr_df.sum() / prev_df.sum()) - 1) * 100
     ytd_growth = ytd_growth.fillna(0).to_dict()
     
+    # 2. YoY (표 행/열 뒤집기)
     yoy_df = df_pivot.pct_change(periods=12) * 100
-    table_df = yoy_df.tail(12).fillna(0)
-    table_data = [{"Date": d.strftime("'%y / %m"), **row} for d, row in table_df.iterrows()]
+    table_df = yoy_df.tail(12).T.fillna(0) # 여기서 Transpose(T) 적용!
     
-    return {"ytd": ytd_growth, "table": table_data, "latest_month": latest_date.month, "year": latest_date.year}
+    table_data = []
+    for cat, row in table_df.iterrows():
+        row_dict = {"Category": cat}
+        for d, val in row.items():
+            row_dict[d.strftime("'%y / %m")] = val
+        table_data.append(row_dict)
+    
+    return {"ytd": ytd_growth, "table": table_data}
 
-# [Tab 2] OTEXA (CSV 필요)
+# [Tab 2] OTEXA
 @app.get("/api/otexa")
 def get_otexa_data():
     if not os.path.exists('otexa_share.csv') or not os.path.exists('otexa_yoy.csv'):
         return {"error": "OTEXA CSV 파일이 서버에 없습니다."}
-    
     share_df = pd.read_csv('otexa_share.csv').fillna(0)
     yoy_df = pd.read_csv('otexa_yoy.csv').fillna(0)
-    
     return {
         "share": share_df.to_dict(orient='records'),
         "yoy": yoy_df.to_dict(orient='records'),
@@ -93,7 +98,6 @@ def get_company_data(ticker: str, keyword: str):
     try: info = tkr.info
     except: pass
     
-    # 현재가 (NaN 버그 픽스 적용)
     current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
     if (current_price == 0 or pd.isna(current_price)) and not hist.empty:
         valid_closes = hist['Close'].dropna()
@@ -107,9 +111,8 @@ def get_company_data(ticker: str, keyword: str):
         monthly_avg = hist_df.groupby('YM')['Close'].mean()
         if len(monthly_avg) >= 2:
             mom_growth = ((monthly_avg.iloc[-1] / monthly_avg.iloc[-2]) - 1) * 100
-        hist_json = [{"date": str(d)[:10], "close": c if not pd.isna(c) else 0} for d, c in zip(hist.index, hist['Close'])]
+        hist_json = [{"date": str(d)[:10], "close": c} for d, c in zip(hist.index, hist['Close']) if not pd.isna(c)]
         
-    # 재무 (QoQ)
     fin_data = []
     try:
         q_fin = tkr.quarterly_financials
@@ -127,10 +130,9 @@ def get_company_data(ticker: str, keyword: str):
                 fin_data = growth.fillna(0).reset_index().to_dict(orient='records')
     except: pass
     
-    # 뉴스
     translated_news = []
     try:
-        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if ".KS" in ticker or ".KQ" in ticker else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
+        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=ko&gl=KR&ceid=KR:ko" if ".K" in ticker or ".T" in ticker else f"https://news.google.com/rss/search?q={urllib.parse.quote(keyword)}&hl=en-US&gl=US&ceid=US:en"
         req = urllib.request.Request(url, headers=HEADERS)
         xml_data = urllib.request.urlopen(req).read()
         root = ET.fromstring(xml_data)
@@ -138,42 +140,52 @@ def get_company_data(ticker: str, keyword: str):
             title = item.find('title').text
             link = item.find('link').text
             pub = item.find('source').text
-            if not (".KS" in ticker or ".KQ" in ticker):
+            if not (".K" in ticker):
                 title = GoogleTranslator(source='auto', target='ko').translate(title)
             translated_news.append({"title": f"[{pub}] {title}", "link": link})
     except: pass
 
-    return {
-        "price": current_price,
-        "mom": mom_growth,
-        "history": hist_json,
-        "financials": fin_data,
-        "news": translated_news
-    }
+    return {"price": current_price, "mom": mom_growth, "history": hist_json, "financials": fin_data, "news": translated_news}
 
 # [Tab 4] 거시경제
 @app.get("/api/macro")
 def get_macro():
     macro_res = {}
     
-    # YF Data
+    # 1. Yahoo Finance Data
     yfs = {"krw": "KRW=X", "cotton": "CT=F", "wti": "CL=F"}
     for k, tkr in yfs.items():
         try:
             h = yf.Ticker(tkr).history(period="1y")['Close'].dropna()
-            macro_res[k] = {"start": h.iloc[0], "end": h.iloc[-1], "chg": ((h.iloc[-1]/h.iloc[0])-1)*100, "history": [{"d": str(d)[:10], "v": v} for d, v in zip(h.index, h)]}
+            if not h.empty:
+                macro_res[k] = {"start": h.iloc[0], "end": h.iloc[-1], "chg": ((h.iloc[-1]/h.iloc[0])-1)*100, "history": [{"d": str(d)[:10], "v": v} for d, v in zip(h.index, h)]}
         except: macro_res[k] = None
 
-    # FRED Data
+    # 2. FRED Data (튼튼한 예외 처리)
+    start_date = pd.Timestamp.today() - pd.DateOffset(years=5)
     freds = {"gdp": "GDPC1", "cpi": "CPIAPPSL", "inv": "MRTSIR448USS", "sales": "RSCCASN", "us_rate": "FEDFUNDS"}
     for k, tkr in freds.items():
         try:
-            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={ticker}&api_key={FRED_API_KEY}&file_type=json"
-            res = requests.get(url, headers=HEADERS, timeout=5).json()['observations']
-            df = pd.DataFrame(res)
-            df['value'] = pd.to_numeric(df['value'], errors='coerce')
-            df = df.dropna().tail(60) # 5년
-            macro_res[k] = {"start": df['value'].iloc[0], "end": df['value'].iloc[-1], "chg": ((df['value'].iloc[-1]/df['value'].iloc[0])-1)*100, "history": [{"d": d, "v": v} for d, v in zip(df['date'], df['value'])]}
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={tkr}&api_key={FRED_API_KEY}&file_type=json"
+            res = requests.get(url, headers=HEADERS, timeout=5)
+            if res.status_code == 200:
+                df = pd.DataFrame(res.json()['observations'])
+                df['date'] = pd.to_datetime(df['date'])
+                df['value'] = pd.to_numeric(df['value'], errors='coerce')
+                df = df.set_index('date')['value'].dropna()
+                df = df[df.index >= start_date]
+                if not df.empty:
+                    macro_res[k] = {"start": df.iloc[0], "end": df.iloc[-1], "chg": ((df.iloc[-1]/df.iloc[0])-1)*100, "history": [{"d": str(d)[:10], "v": v} for d, v in zip(df.index, df)]}
         except: macro_res[k] = None
+
+    # 3. 한국 기준금리 (수동 매핑)
+    try:
+        dates = pd.date_range(start=start_date, end=pd.Timestamp.today(), freq='ME')
+        kr_rate = pd.Series(3.50, index=dates)
+        kr_history = {'2021-01-01': 0.50, '2021-08-26': 0.75, '2021-11-25': 1.00, '2022-01-14': 1.25, '2022-04-14': 1.50, '2022-05-26': 1.75, '2022-07-13': 2.25, '2022-08-25': 2.50, '2022-10-12': 3.00, '2022-11-24': 3.25, '2023-01-13': 3.50}
+        for d_str, val in kr_history.items():
+            kr_rate[kr_rate.index >= pd.Timestamp(d_str)] = val
+        macro_res["kr_rate"] = {"start": kr_rate.iloc[0], "end": kr_rate.iloc[-1], "chg": kr_rate.iloc[-1] - kr_rate.iloc[0], "history": [{"d": str(d)[:10], "v": v} for d, v in zip(kr_rate.index, kr_rate)]}
+    except: macro_res["kr_rate"] = None
 
     return macro_res
