@@ -6,7 +6,6 @@
 <title>US Market & RM 통합 대시보드 | 한솔섬유</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-/* 한솔섬유 엔터프라이즈 폰트 및 컬러 100% 이식 */
 :root { 
     --bg: #f3f4f6; --canvas: #fff; --panel: #fafbfc; 
     --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; 
@@ -26,7 +25,7 @@ body {
 .page-tab:hover { background-color: var(--panel); color: var(--accent2); }
 .page-tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
 
-/* 화면 꽉 차게 98% */
+/* 화면 폭 98% 확장 */
 .main { padding: 20px; max-width: 98%; margin: 0 auto; }
 .page { display: none; }
 .page.active { display: block; }
@@ -40,7 +39,7 @@ h3.ctitle::before { content: ''; display: inline-block; width: 3px; height: 12px
 .metric-sub { font-size: 13px; font-weight: 600; }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 
-/* 표 디자인 */
+/* 표 스타일 */
 .table-wrap { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
 th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right; }
@@ -49,7 +48,7 @@ tr:hover td { background-color: #f0f9ff; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-select { padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid var(--line); font-family: inherit; font-weight: 600; margin-bottom: 20px; outline: none; min-width: 250px;}
+select { padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid var(--line); font-family: inherit; font-weight: 600; margin-bottom: 20px; outline: none; min-width: 280px;}
 optgroup { font-weight: 700; color: var(--muted); }
 .news-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
 .news-item a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 13px; }
@@ -83,6 +82,10 @@ optgroup { font-weight: 700; color: var(--muted); }
         <div id="fred-ytd" class="loader">FRED 데이터 분석 중... (약 5초 소요)</div>
     </div>
     <div class="card">
+        <h3 class="ctitle">주요 4개 카테고리 전년 동월대비 증감률 추이 (YoY %)</h3>
+        <div id="fred-line-chart"></div>
+    </div>
+    <div class="card">
         <h3 class="ctitle">미국 소매 카테고리 별 전년 동월대비 증감률 (YoY %)</h3>
         <div id="fred-yoy" class="table-wrap"></div>
     </div>
@@ -95,7 +98,7 @@ optgroup { font-weight: 700; color: var(--muted); }
         <div id="otexa-share" class="loader">OTEXA 데이터 로딩 중...</div>
     </div>
     <div class="card">
-        <h3 class="ctitle">미국 의류 수입 국가별 전년 동월대비 증감률 (YoY %) - 추세</h3>
+        <h3 class="ctitle">미국 의류 수입 주요 7개국 전년 동월대비 증감률 (YoY %) - 추세</h3>
         <div id="otexa-yoy-line"></div>
         <div id="otexa-yoy" class="table-wrap" style="margin-top:20px;"></div>
     </div>
@@ -127,22 +130,23 @@ optgroup { font-weight: 700; color: var(--muted); }
             <option value="008600.KS|윌비스">윌비스</option>
             <option value="009270.KS|신원">신원</option>
             <option value="004060.KS|SG세계물산">SG세계물산</option>
+            <option value="084680.KS|이월드">온타이드 (이월드)</option>
         </optgroup>
     </select>
     
     <div class="grid-2">
         <div class="card" style="margin-bottom: 0;">
-            <h3 class="ctitle">실시간 주가 추세 (최근 1년)</h3>
+            <div class="ctitle">실시간 주가 추세 (최근 1년)</div>
             <div id="comp-price" style="margin-bottom: 10px;"></div>
             <div id="comp-chart"></div>
         </div>
         <div class="card" style="margin-bottom: 0;">
-            <h3 class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</h3>
-            <div id="comp-fin" style="height: 300px;"></div>
+            <div class="ctitle">최근 4개 분기 실적 증감률 (QoQ)</div>
+            <div id="comp-fin" style="height: 280px;"></div>
         </div>
     </div>
     <div class="card" style="margin-top: 16px;">
-        <h3 class="ctitle">관련 최신 뉴스</h3>
+        <div class="ctitle">관련 최신 뉴스</div>
         <div id="comp-news"></div>
     </div>
   </div>
@@ -151,42 +155,42 @@ optgroup { font-weight: 700; color: var(--muted); }
   <div id="tab4" class="page">
     <div class="grid-2">
         <div class="card">
-            <h3 class="ctitle">💱 원/달러 환율 (최근 1년)</h3>
+            <div class="ctitle">💱 원/달러 환율 (최근 1년)</div>
             <div id="m-krw-text" class="macro-header"></div>
             <div id="m-krw-chart" class="loader">데이터를 불러오는 중입니다...</div>
         </div>
         <div class="card">
-            <h3 class="ctitle">🏦 한·미 기준금리 추이 (최근 5년)</h3>
+            <div class="ctitle">🏦 한·미 기준금리 추이 (최근 5년)</div>
             <div id="m-rate-text" class="macro-header"></div>
             <div id="m-rate-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">🌱 글로벌 면화 선물 가격 (최근 1년)</h3>
+            <div class="ctitle">🌱 글로벌 면화 선물 가격 (최근 1년)</div>
             <div id="m-cotton-text" class="macro-header"></div>
             <div id="m-cotton-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">⚓ WTI 국제 유가 (최근 1년)</h3>
+            <div class="ctitle">⚓ WTI 국제 유가 (최근 1년)</div>
             <div id="m-wti-text" class="macro-header"></div>
             <div id="m-wti-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">🏢 미국 실질 GDP (최근 5년)</h3>
+            <div class="ctitle">🏢 미국 실질 GDP (최근 5년)</div>
             <div id="m-gdp-text" class="macro-header"></div>
             <div id="m-gdp-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">👕 미국 의류 소비자물가지수 (CPI)</h3>
+            <div class="ctitle">👕 미국 의류 소비자물가지수 (CPI)</div>
             <div id="m-cpi-text" class="macro-header"></div>
             <div id="m-cpi-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">📦 미국 의류 소매재고율</h3>
+            <div class="ctitle">📦 미국 의류 소매재고율</div>
             <div id="m-inv-text" class="macro-header"></div>
             <div id="m-inv-chart"></div>
         </div>
         <div class="card">
-            <h3 class="ctitle">🛍️ 미국 의류 소매 판매액</h3>
+            <div class="ctitle">🛍️ 미국 의류 소매 판매액</div>
             <div id="m-sales-text" class="macro-header"></div>
             <div id="m-sales-chart"></div>
         </div>
@@ -207,10 +211,14 @@ function showTab(tabId, el) {
     if(tabId === 'tab4' && !window.macroLoaded) { window.macroLoaded=true; loadMacro(); }
 }
 
+// X축 월단위 표기 설정
 const chartLayout = {
     plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-    margin: {l: 45, r: 20, t: 10, b: 30},
-    xaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}},
+    margin: {l: 45, r: 25, t: 10, b: 35},
+    xaxis: {
+        type: 'date', tickformat: '%Y-%m', dtick: 'M1', nticks: 6,
+        showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}
+    },
     yaxis: {showgrid: true, gridcolor: '#e2e8f0', tickfont: {size: 11, color: '#64748b'}}
 };
 
@@ -219,31 +227,43 @@ function loadFred() {
     fetch('/api/fred').then(r=>r.json()).then(data => {
         if(data.error) { document.getElementById('fred-ytd').innerHTML = data.error; return; }
         
-        // 1. YTD Chart (여백 넓힘, 세련된 컬러, Clothing 강조)
         document.getElementById('fred-ytd').innerHTML = "";
         let cats = Object.keys(data.ytd).reverse();
         let vals = Object.values(data.ytd).reverse();
         let targetIdx = cats.indexOf("Clothing and Clothing Accessories Stores");
         
+        // 스카이블루 바 및 텍스트까지 덮는 레드 박스 하이라이트
         let shapes = targetIdx >= 0 ? [{
-            type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: targetIdx - 0.5, y1: targetIdx + 0.5,
-            fillcolor: 'rgba(239, 68, 68, 0.1)', line: {color: '#ef4444', width: 2}, layer: 'below'
+            type: 'rect', xref: 'paper', x0: -0.45, x1: 1.05, yref: 'y', y0: targetIdx - 0.45, y1: targetIdx + 0.45,
+            fillcolor: 'rgba(239, 68, 68, 0.12)', line: {color: '#ef4444', width: 2}, layer: 'below'
         }] : [];
         
         Plotly.newPlot('fred-ytd', [{
             type: 'bar', x: vals, y: cats, orientation: 'h',
-            marker: {color: vals.map(v => v < 0 ? '#ef4444' : '#0078d4')},
+            marker: {color: vals.map(v => v < 0 ? '#ef4444' : '#38BDF8')},
             text: vals.map(v => v.toFixed(1) + '%'), textposition: 'outside'
-        }], { height: 500, margin: {l: 350, r: 50, t: 10, b: 30}, xaxis: {gridcolor: '#e2e8f0'}, shapes: shapes });
+        }], { height: 520, margin: {l: 400, r: 50, t: 10, b: 20}, xaxis: {gridcolor: '#e2e8f0'}, shapes: shapes });
 
-        // 2. YoY Table (행/열 반전 적용 완료)
+        // 4개 주요 카테고리 꺾은선 추이
+        if(data.trend && data.trend.length > 0) {
+            let tDates = data.trend.map(d => d.Date);
+            let tCols = ["Total Retail Trade", "Nonstore Retailers", "Clothing and Clothing Accessories Stores", "Offline"];
+            let tColors = ['#1e3a8a', '#2563eb', '#ef4444', '#059669'];
+            let lineTraces = tCols.map((col, idx) => ({
+                x: tDates, y: data.trend.map(d => d[col]),
+                name: col, type: 'scatter', mode: 'lines+markers', line: {color: tColors[idx], width: 2}
+            }));
+            Plotly.newPlot('fred-line-chart', lineTraces, { ...chartLayout, height: 300, legend: {orientation: 'h', y: -0.2} });
+        }
+
+        // YoY Table
         let tableData = data.table;
         if(tableData.length > 0) {
             let cols = Object.keys(tableData[0]);
             let ths = cols.map(c => `<th>${c}</th>`).join('');
             let trs = tableData.map(row => {
                 let isClothing = row["Category"] === "Clothing and Clothing Accessories Stores";
-                let trStyle = isClothing ? 'style="background-color: #FEF2F2; border-top: 2px solid #ef4444; border-bottom: 2px solid #ef4444;"' : '';
+                let trStyle = isClothing ? 'style="background-color: #FEF2F2; outline: 2px solid #ef4444;"' : '';
                 
                 let tds = cols.map((c, i) => {
                     if (c === "Category") return `<td style="text-align:left; font-weight:600; background:#f8fafc;">${row[c]}</td>`;
@@ -264,7 +284,6 @@ function loadOtexa() {
         if(data.error) { document.getElementById('otexa-share').innerHTML = data.error; return; }
         document.getElementById('otexa-share').innerHTML = "";
         
-        // 1. Share Bar Chart (폰트 겹침 수정)
         let colors = ['#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#eff6ff'];
         let traces = data.years.map((year, i) => ({
             x: data.share.map(d => d.Country), y: data.share.map(d => d[year]),
@@ -272,28 +291,32 @@ function loadOtexa() {
             text: data.share.map(d => d[year] ? d[year].toFixed(1) + '%' : ''), 
             textposition: 'auto', textfont: {size: 10}
         }));
-        Plotly.newPlot('otexa-share', traces, { barmode: 'group', height: 350, plot_bgcolor: '#fff', legend: {orientation: 'h', y: -0.15} });
+        Plotly.newPlot('otexa-share', traces, { barmode: 'group', height: 350, plot_bgcolor: '#fff', legend: {orientation: 'h', y: -0.2} });
 
-        // 2. YoY 꺾은선 차트 추가
-        let yoyData = data.yoy;
+        // 주요 7개국 고정 꺾은선 차트 & 동일 컬러 세트
+        let target7 = ['World', 'China', 'Vietnam', 'Indonesia', 'Cambodia', 'Nicaragua', 'Guatemala'];
+        let colorMap = {
+            'World': '#64748b', 'China': '#b45309', 'Vietnam': '#059669', 
+            'Indonesia': '#0284c7', 'Cambodia': '#1d4ed8', 'Nicaragua': '#dc2626', 'Guatemala': '#0d9488'
+        };
+        
+        let yoyData = data.yoy.filter(d => target7.includes(d.Country));
         if(yoyData.length > 0) {
             let dateCols = Object.keys(yoyData[0]).filter(k => k !== 'Country');
             let lineTraces = yoyData.map(row => ({
                 x: dateCols, y: dateCols.map(c => row[c]),
-                name: row.Country, type: 'scatter', mode: 'lines+markers'
+                name: row.Country, type: 'scatter', mode: 'lines+markers',
+                line: {color: colorMap[row.Country] || '#64748b', width: 2}
             }));
-            Plotly.newPlot('otexa-yoy-line', lineTraces, { ...chartLayout, height: 300, legend: {orientation: 'h', y: -0.15} });
+            Plotly.newPlot('otexa-yoy-line', lineTraces, { ...chartLayout, height: 320, legend: {orientation: 'h', y: -0.25} });
 
-            // 3. YoY Table (색상 세련되게, 글씨색 수정)
+            // YoY Table (글씨 흰색, 가독성 수정)
             let ths = ['Country', ...dateCols].map(c => `<th>${c}</th>`).join('');
-            let bgMap = {'World': '#475569', 'China': '#b45309', 'Vietnam': '#059669', 'Indonesia': '#0284c7', 'Cambodia': '#1d4ed8', 'Nicaragua': '#dc2626', 'Guatemala': '#0d9488'};
-            
             let trs = yoyData.map(row => {
-                let bg = bgMap[row.Country] || '#ffffff';
-                let tColor = bgMap[row.Country] ? 'white' : '#0f172a';
+                let bg = colorMap[row.Country] || '#ffffff';
                 let tds = ['Country', ...dateCols].map((c, i) => {
-                    if(i === 0) return `<td style="background-color:${bg}; color:${tColor}; font-weight:600; text-align:center;">${row[c]}</td>`;
-                    return `<td style="background-color:${bg}; color:${tColor};">${row[c] ? row[c].toFixed(1)+'%' : '-'}</td>`;
+                    if(i === 0) return `<td style="background-color:${bg}; color:#ffffff; font-weight:700; text-align:center;">${row[c]}</td>`;
+                    return `<td style="background-color:${bg}; color:#ffffff; font-weight:600;">${row[c] ? row[c].toFixed(1)+'%' : '-'}</td>`;
                 }).join('');
                 return `<tr>${tds}</tr>`;
             }).join('');
@@ -304,9 +327,9 @@ function loadOtexa() {
 
 // [Tab 3] 기업 모니터링
 function loadCompany() {
-    document.getElementById('comp-price').innerHTML = "<div class='loader'>데이터 로딩 중...</div>";
+    document.getElementById('comp-price').innerHTML = "<div class='loader'>주가 데이터 로딩 중...</div>";
     document.getElementById('comp-chart').innerHTML = "";
-    document.getElementById('comp-fin').innerHTML = "<div class='loader'>재무 데이터 로딩 중...</div>";
+    document.getElementById('comp-fin').innerHTML = "";
     document.getElementById('comp-news').innerHTML = "<div class='loader'>뉴스 로딩 중...</div>";
     
     let val = document.getElementById('companySelect').value.split('|');
@@ -314,28 +337,35 @@ function loadCompany() {
     fetch(`/api/company?ticker=${val[0]}&keyword=${val[1]}`).then(r=>r.json()).then(data => {
         let pColor = data.mom >= 0 ? 'pos' : 'neg';
         let pSign = data.mom >= 0 ? '+' : '';
-        let curr = val[0].includes('.T') ? '¥' : val[0].includes('.K') ? '₩' : val[0].includes('.KQ') ? '₩' : '$';
+        let currSym = data.currency === "KRW" ? "₩" : data.currency === "JPY" ? "¥" : data.currency === "CAD" ? "CA$" : "$";
+        
         document.getElementById('comp-price').innerHTML = `
-            <div class="metric">${curr} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+            <div class="metric">${currSym} ${data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
             <div class="metric-sub ${pColor}">${pSign}${data.mom.toFixed(2)}% (최근 월평균 MoM)</div>
         `;
         
         let dates = data.history.map(d => d.date);
         let closes = data.history.map(d => d.close);
-        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { ...chartLayout, height: 200, margin: {t:0, b:30, l:50, r:20} });
+        Plotly.newPlot('comp-chart', [{ x: dates, y: closes, type: 'scatter', line: {color: '#0078d4', width: 2} }], { 
+            ...chartLayout, height: 220, margin: {t:10, b:35, l:50, r:20} 
+        });
         
         if(data.financials && data.financials.length > 0) {
             let qtrs = Object.keys(data.financials[0]).filter(k => k !== 'index');
             let fTraces = data.financials.map(row => {
-                // 파란색, 주황색 명확한 대비
                 let color = (row.index.includes('영업') || row.index.includes('Operating')) ? '#f59e0b' : '#0078d4';
                 return {
                     x: qtrs, y: qtrs.map(q => row[q]), name: row.index, type: 'bar', marker: {color: color},
-                    text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), textposition: 'outside', textfont: {size: 10}
+                    text: qtrs.map(q => (row[q]>0?'+':'') + row[q].toFixed(1) + '%'), 
+                    textposition: 'outside', cliponaxis: false, textfont: {size: 10, color: '#0f172a'}
                 };
             });
-            document.getElementById('comp-fin').innerHTML = ""; // 찌꺼기 텍스트 지우기
-            Plotly.newPlot('comp-fin', fTraces, { barmode: 'group', ...chartLayout, height: 300, margin:{t:10}, legend: {orientation: 'h', y: 1.15} });
+            Plotly.newPlot('comp-fin', fTraces, { 
+                barmode: 'group', ...chartLayout, height: 280, 
+                margin:{t:30, b:30, l:45, r:20}, 
+                yaxis: {showgrid: true, gridcolor: '#e2e8f0', automargin: true},
+                legend: {orientation: 'h', y: 1.25} 
+            });
         } else {
             document.getElementById('comp-fin').innerHTML = "<div style='padding:20px; color:#64748b; font-size:12px; text-align:center;'>최근 4개 분기 실적 데이터를 제공하지 않습니다.</div>";
         }
@@ -348,7 +378,7 @@ function loadCompany() {
 // [Tab 4] 거시경제
 function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false) {
     if(!d) {
-        document.getElementById(`m-${id}-text`).innerHTML = "데이터 연동 지연 (API 일시적 오류)";
+        document.getElementById(`m-${id}-text`).innerHTML = "데이터 연동 지연";
         document.getElementById(`m-${id}-chart`).innerHTML = "";
         return;
     }
@@ -358,7 +388,7 @@ function drawMacroChart(id, d, color, prefix='', suffix='', isArea=false) {
     
     let trace = { x: d.history.map(x=>x.d), y: d.history.map(x=>x.v), type: 'scatter', line: {color: color, width: 2} };
     if(isArea) { trace.fill = 'tozeroy'; }
-    document.getElementById(`m-${id}-chart`).innerHTML = ""; // 로딩 지우기
+    document.getElementById(`m-${id}-chart`).innerHTML = "";
     Plotly.newPlot(`m-${id}-chart`, [trace], { ...chartLayout, height: 220 });
 }
 
@@ -379,9 +409,6 @@ function loadMacro() {
             let tKR = { x: kr.history.map(x=>x.d), y: kr.history.map(x=>x.v), name: '한국', type: 'scatter', line: {color: '#0078d4', width: 2} };
             document.getElementById('m-rate-chart').innerHTML = "";
             Plotly.newPlot('m-rate-chart', [tUS, tKR], { ...chartLayout, height: 220, showlegend: true, legend: {orientation: 'h', y: 1.15} });
-        } else {
-             document.getElementById('m-rate-text').innerHTML = "데이터 연동 지연";
-             document.getElementById('m-rate-chart').innerHTML = "";
         }
     });
 }
